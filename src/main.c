@@ -4,6 +4,7 @@
 #include <glib-object.h>
 #include "sdl_source.h"
 #include "x_sdl_sprite.h"
+#include "robot_vm.h"
 
 const unsigned WIDTH = 800;
 const unsigned HEIGHT = 600;
@@ -216,8 +217,13 @@ static gboolean timeout_cb(gpointer ptr)
 	return TRUE;
 }
 
+static int test_vm(void);
 int main(int argc, char *argv[])
 {
+	if (argc > 1 && !strcmp(argv[1], "vm")) {
+		return test_vm();
+	}
+
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		fprintf(stderr, "Error: SDL_Init failed: %s\n", SDL_GetError());
 		return 1;
@@ -265,6 +271,16 @@ int main(int argc, char *argv[])
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
 	SDL_Quit();
+
+	return 0;
+}
+
+static int test_vm(void)
+{
+	RobotVM *vm = robot_vm_new();
+
+
+	g_object_unref(vm);
 
 	return 0;
 }

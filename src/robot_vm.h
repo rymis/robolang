@@ -14,6 +14,7 @@ typedef enum _RobotErrorCodes {
 	ROBOT_ERROR_INVALID_INSTRUCTION,
 	ROBOT_ERROR_INVALID_ADDRESS,
 	ROBOT_ERROR_EXECUTION_FAULT,
+	ROBOT_ERROR_DIVISION_BY_ZERO,
 	ROBOT_ERROR_STACK
 } RobotErrorCodes;
 
@@ -21,11 +22,13 @@ typedef enum _RobotVMCommand {
 	ROBOT_VM_NOP,    /* No operation                              */
 	ROBOT_VM_JUMP,   /* Jump to address                           */
 	ROBOT_VM_JIF,    /* Jump if here are non zero on top of stack */
-	ROBOT_VM_CALL,   /* Call function by number in symtable       */
+	ROBOT_VM_SYS,    /* Call function by number in symtable       */
+	ROBOT_VM_CALL,   /* Call subprogram by address from A         */
 	ROBOT_VM_RET,    /* Return from function                      */
 	ROBOT_VM_PUSH,   /* Push value from A to stack                */
 	ROBOT_VM_NTH,    /* Get value from stack at position A to A   */
 	ROBOT_VM_POP,    /* Pop value from stack to A                 */
+	ROBOT_VM_CONST,  /* A = CONST - next memory after instruction */
 
 	ROBOT_VM_COMMAND_COUNT
 } RobotVMCommand;
@@ -71,7 +74,12 @@ struct _RobotVMClass {
 	GObjectClass parent_class;
 };
 
+/** Create new VM and add standard functions */
 RobotVM* robot_vm_new(void);
+/** Create VM and do not add standard functions (why???) */
+RobotVM* robot_vm_new_empty(void);
+void robot_vm_add_standard_functions(RobotVM *self);
+
 guint robot_vm_add_function(RobotVM *self, const char *name, RobotVMFunc func, gpointer userdata, GDestroyNotify free_userdata);
 gboolean robot_vm_has_function(RobotVM *self, const char *name);
 gint robot_vm_get_function(RobotVM *self, const char *name);

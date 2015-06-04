@@ -83,6 +83,15 @@ static void robot_vm_init(RobotVM *self)
 
 RobotVM* robot_vm_new(void)
 {
+	RobotVM *self = robot_vm_new_empty();
+
+	robot_vm_add_standard_functions(self);
+
+	return self;
+}
+
+RobotVM* robot_vm_new_empty(void)
+{
 	RobotVM* self = g_object_new(ROBOT_TYPE_VM, NULL);
 
 	return self;
@@ -172,23 +181,27 @@ static inline gboolean exec(RobotVM *self, GError **error)
 				++self->PC;
 			break;
 
-		case ROBOT_VM_CALL:   /* Call function by number in symtable       */
+		case ROBOT_VM_SYS:   /* Call function by number in symtable       */
 			if (self->priv->symtable->len <= self->A) {
 				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_INVALID_ADDRESS,
 						"Invalid function reference: %u\n", (unsigned)self->A);
 				return FALSE;
 			}
 			sym = &g_array_index(self->priv->symtable, Symbol, self->A);
-			if (sym->func) {
-				++self->PC;
-				return sym->func(self, sym->userdata, error);
-			} else {
-				++self->PC;
-				if (!robot_vm_stack_push(&self->rstack, &self->PC, sizeof(RobotVMWord), error)) {
-					return FALSE;
-				}
-				self->PC = sym->address;
+			if (!sym->func) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Invalid function");
+				return FALSE;
 			}
+
+			++self->PC;
+			return sym->func(self, sym->userdata, error);
+
+		case ROBOT_VM_CALL:   /* Call function by address       */
+			++self->PC;
+			if (!robot_vm_stack_push(&self->rstack, &self->PC, sizeof(RobotVMWord), error)) {
+				return FALSE;
+			}
+			self->PC = self->A;
 			break;
 
 		case ROBOT_VM_RET:    /* Return from function                      */
@@ -216,6 +229,22 @@ static inline gboolean exec(RobotVM *self, GError **error)
 				return FALSE;
 			}
 			++self->PC;
+			break;
+
+		case ROBOT_VM_CONST:    /* Load constant to A from memory */
+			++self->PC;
+			if (self->PC + sizeof(RobotVMWord) >= self->memory->len) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_INVALID_ADDRESS,
+						"Out of memory: %x", (unsigned)self->PC);
+				return FALSE;
+			}
+
+			self->A =
+				(self->memory->data[self->PC] << 24) |
+				(self->memory->data[self->PC + 1] << 16) |
+				(self->memory->data[self->PC + 2] << 8) |
+				(self->memory->data[self->PC + 3]);
+			self->PC += sizeof(RobotVMWord);
 			break;
 
 		default:
@@ -261,5 +290,86 @@ gboolean robot_vm_stack_nth(RobotVMStack *stack, guint idx, gpointer data, gsize
 	memcpy(data, stack->stack->data + (stack->top - len - idx), len);
 
 	return TRUE;
+}
+
+#define UNFUNC(nm, CODE) \
+	static gboolean rvm_##nm(RobotVM *self, gpointer userdata, GError **error) \
+	{ \
+		RobotVMWord a, r; \
+		if (!robot_vm_stack_pop(&self->stack, &a, sizeof(RobotVMWord), error)) { \
+			return FALSE; /* Error was set in pop */ \
+		} \
+		CODE; \
+		if (!robot_vm_stack_push(&self->stack, &r, sizeof(RobotVMWord), error)) { \
+			return FALSE; \
+		} \
+		return TRUE; \
+	}
+
+#define BINFUNC(nm, CODE) \
+	static gboolean rvm_##nm(RobotVM *self, gpointer userdata, GError **error) \
+	{ \
+		RobotVMWord a, b, r; \
+		if (!robot_vm_stack_pop(&self->stack, &a, sizeof(RobotVMWord), error)) { \
+			return FALSE; /* Error was set in pop */ \
+		} \
+		if (!robot_vm_stack_pop(&self->stack, &b, sizeof(RobotVMWord), error)) { \
+			return FALSE; /* Error was set in pop */ \
+		} \
+		CODE; \
+		if (!robot_vm_stack_push(&self->stack, &r, sizeof(RobotVMWord), error)) { \
+			return FALSE; \
+		} \
+		return TRUE; \
+	}
+
+#define ERR(e, ...) \
+	do { \
+		g_set_error(error, ROBOT_ERROR, e, __VA_ARGS__); \
+		return FALSE; \
+	} while (0)
+
+/* Arithmetic: */
+BINFUNC(add, r = a + b;)
+BINFUNC(sub, r = a - b;)
+BINFUNC(mul, r = a * b;)
+BINFUNC(div, if (b == 0) ERR(ROBOT_ERROR_DIVISION_BY_ZERO, "Division by zero"); r = a / b;)
+BINFUNC(mod, if (b == 0) ERR(ROBOT_ERROR_DIVISION_BY_ZERO, "Division by zero"); r = a % b;)
+
+/* Logical: */
+UNFUNC(not, r = !a;)
+BINFUNC(and, r = a && b;)
+BINFUNC(or, r = a || b;)
+
+/* Compare: */
+BINFUNC(eq, r = (a == b);)
+BINFUNC(less, r = (a < b);)
+BINFUNC(leq, r = (a <= b);)
+
+static struct std_func {
+	const char *name;
+	RobotVMFunc func;
+	gpointer userdata;
+} std_funcs[] = {
+#define F(nm) \
+	{ "@" #nm, rvm_##nm, NULL }
+
+	F(add), F(sub), F(div), F(mul), F(mod),
+
+	F(not), F(and), F(or),
+
+	F(eq), F(less), F(leq),
+
+#undef F
+	{ NULL, NULL, NULL }
+};
+
+void robot_vm_add_standard_functions(RobotVM *self)
+{
+	guint i;
+
+	for (i = 0; std_funcs[i].name; i++) {
+		robot_vm_add_function(self, std_funcs[i].name, std_funcs[i].func, std_funcs[i].userdata, NULL);
+	}
 }
 
