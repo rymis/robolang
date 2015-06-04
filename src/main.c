@@ -275,10 +275,30 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+static char test_prog[] =
+	"; This is comment\n"
+	"# And this is comment too\n"
+	"nop\n"
+	"load 0x123556\n"
+	":addr1\n"
+	"load @addr1\n"
+	"load %$add$\n"
+	":var { 01 02 03 04 05}\n"
+	":var2 { 01 cD 03 04 ab }\n"
+	"sys\n"
+	"load @addr1\n"
+	"jump\n\n";
+
 static int test_vm(void)
 {
 	RobotVM *vm = robot_vm_new();
+	GError *error = NULL;
 
+	if (!robot_vm_asm_compile(vm, test_prog, &error)) {
+		fprintf(stderr, "Error: %s\n", error->message);
+		g_object_unref(vm);
+		return 1;
+	}
 
 	g_object_unref(vm);
 

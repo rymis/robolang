@@ -34,6 +34,8 @@ typedef struct _Chunk {
 
 struct _RobotVMPrivate {
 	GArray *symtable;
+
+	gboolean stop;
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE(RobotVM, robot_vm, G_TYPE_OBJECT)
@@ -70,6 +72,7 @@ static void robot_vm_init(RobotVM *self)
 {
 	self->priv = robot_vm_get_instance_private(self);
 	self->priv->symtable = g_array_new(FALSE, TRUE, sizeof(Symbol));
+	self->priv->stop = FALSE;
 
 	g_array_set_clear_func(self->priv->symtable, symbol_clear);
 
@@ -125,6 +128,8 @@ guint robot_vm_add_function(RobotVM *self, const char *name, RobotVMFunc func, g
 	sym->userdata = userdata;
 	sym->free_userdata = free_userdata;
 	sym->address = 0;
+	strncpy(sym->name, name, sizeof(sym->name));
+	sym->name[sizeof(sym->name) - 1] = 0;
 
 	return self->priv->symtable->len - 1;
 }
@@ -247,11 +252,63 @@ static inline gboolean exec(RobotVM *self, GError **error)
 			self->PC += sizeof(RobotVMWord);
 			break;
 
+		case ROBOT_VM_STOP:    /* Stop machine */
+			++self->PC;
+			self->priv->stop = TRUE;
+			break;
+
 		default:
 			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_INVALID_INSTRUCTION,
 					"Invalid instruction %02x at %x", self->memory->data[self->PC], (unsigned)self->PC);
 			return FALSE;
 	}
+	return TRUE;
+}
+
+/* Execute program throw the end: */
+gboolean robot_vm_exec(RobotVM *self, GError **error)
+{
+	self->priv->stop = FALSE;
+
+	while (!self->priv->stop) {
+		if (!exec(self, error))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+/* Execute one program instruction: */
+gboolean robot_vm_step(RobotVM *self, gboolean *stop, GError **error)
+{
+	gboolean res = exec(self, error);
+
+	if (res && stop) {
+		*stop = self->priv->stop;
+	}
+
+	return res;
+}
+
+/* Execute program until some syscall: */
+gboolean robot_vm_next(RobotVM *self, gboolean *stop, GError **error)
+{
+	self->priv->stop = FALSE;
+
+	while (!self->priv->stop) {
+		if (self->PC < self->memory->len &&
+				self->memory->data[self->PC] == ROBOT_VM_SYS) {
+			break;
+		}
+
+		if (!exec(self, error)) {
+			return FALSE;
+		}
+	}
+
+	if (*stop)
+		*stop = self->priv->stop;
+
 	return TRUE;
 }
 
@@ -352,7 +409,7 @@ static struct std_func {
 	gpointer userdata;
 } std_funcs[] = {
 #define F(nm) \
-	{ "@" #nm, rvm_##nm, NULL }
+	{ "$" #nm "$", rvm_##nm, NULL }
 
 	F(add), F(sub), F(div), F(mul), F(mod),
 
@@ -373,3 +430,378 @@ void robot_vm_add_standard_functions(RobotVM *self)
 	}
 }
 
+static const gchar* skip_ws(const gchar* s, int *line)
+{
+	for (;;) {
+		while (*s && g_ascii_isspace(*s)) {
+			if (*s == '\n')
+				++(*line);
+			++s;
+		}
+
+		if (*s == ';' || *s == '#') {
+			++s;
+			while (*s && *s != '\n')
+				++s;
+			if (!*s)
+				return s;
+			++(*line);
+			++s;
+		} else {
+			return s;
+		}
+	}
+
+	return NULL; /* not reached */
+}
+
+static const gchar *read_name(const gchar *s, char *id, gsize sz, int line, GError **error)
+{
+	char b[16];
+	gsize i = 0;
+
+	if (!g_ascii_isalpha(s[0]) && s[0] != '$') {
+		strncpy(b, s, sizeof(b) - 1);
+		b[sizeof(b) - 1] = 0;
+		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Invalid character at line %d `%s'", line, b);
+		return NULL;
+	}
+
+	while (i < sz && (g_ascii_isalnum(s[i]) || s[i] == '_' || s[i] == '$')) {
+		id[i] = s[i];
+		i++;
+	}
+
+	if (i == sz) {
+		id[sz - 1] = 0;
+		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Invalid identifier of size more then %u at line %d `%s...'", (unsigned)sz, line, id);
+		return NULL;
+	}
+
+	id[i] = 0;
+
+	return s + i;
+}
+
+static const gchar* read_num(const gchar *s, RobotVMWord *result, int line, GError **error)
+{
+	RobotVMWord res = 0;
+	RobotVMWord r2 = 0;
+
+	if (s[0] == '0' && s[1] == 'x') { /* Read hex */
+		s += 2;
+		while (g_ascii_isxdigit(*s)) {
+			r2 = res * 16 + g_ascii_xdigit_value(*s);
+			++s;
+
+			if (r2 < res) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Integer overflow at line %d", line);
+				return NULL;
+			}
+
+			res = r2;
+		}
+	} else {
+		while (g_ascii_isdigit(*s)) {
+			r2 = res * 10 + g_ascii_digit_value(*s);
+			++s;
+
+			if (r2 < res) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Integer overflow at line %d", line);
+				return NULL;
+			}
+
+			res = r2;
+		}
+	}
+
+	*result = res;
+
+	return s;
+}
+
+static const gchar* read_data(const gchar *s, GByteArray *data, int *line, GError **error)
+{
+	unsigned char c;
+	const gchar *p;
+
+	++s;
+
+	while (*s) {
+		s = skip_ws(s, line);
+
+		if (*s == '}') {
+			++s;
+			return s;
+		}
+
+		if (!g_ascii_isxdigit(*s)) {
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Invalid symbol at line %d `%16s'", *line, s);
+			return NULL;
+		}
+
+		c = g_ascii_xdigit_value(*s) * 16;
+		++s;
+
+		if (!g_ascii_isxdigit(*s)) {
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Invalid symbol at line %d `%16s'", *line, s);
+			return NULL;
+		}
+
+		c += g_ascii_xdigit_value(*s);
+		++s;
+
+		p = skip_ws(s, line);
+		if (p == s && *s != '}') {
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Invalid symbol at line %d `%16s'", *line, s);
+			return NULL;
+		}
+
+		s = p;
+	}
+
+	return NULL;
+}
+
+struct instruction {
+	RobotVMWord    loc;
+	RobotVMCommand code;
+	RobotVMWord    addr;
+	char name[256];
+	char sys[256];
+	int line;
+	GByteArray *data;
+};
+
+static void instr_clear(void *p)
+{
+	struct instruction *s = p;
+	if (s->data)
+		g_byte_array_unref(s->data);
+}
+
+static gboolean find_label(GArray *array, const char *name, RobotVMWord *addr)
+{
+	guint i;
+	struct instruction *p;
+
+	for (i = 0; i < array->len; i++) {
+		p = &g_array_index(array, struct instruction, i);
+		if (p->code == ROBOT_VM_COMMAND_COUNT && !strcmp(p->name, name)) {
+			*addr = p->loc;
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+/* Assembler is as simple as possible. Language is:
+ * # comment - it is comment
+ * ; comment - and this is comment too
+ * :label - label. This label place could be used in program as address in form @label
+ * nop - no operation instruction
+ * jump - jump to address saved in register A
+ * jif  - jump to address saved in register A if top of stack contains not zero. This instruction pops value from stack.
+ * sys  - call system function with number in A
+ * call - call subprogram by address from A
+ * ret  - return from subprogram
+ * push - push value from memory pointed by A into the stack
+ * pop  - pop value from stack into memory pointed by A
+ * nth  - get value from stack value by offset in A
+ * stop - stop the program
+ * load value - load value after this instruction into register A. Value could be @label, %sys or integer constant in forms: 0xhex or 1234
+ * { aa bb cc dd } - save data at the address. Must be placed directly after label.
+ */
+gboolean robot_vm_asm_compile(RobotVM *self, const gchar *prog, GError **error)
+{
+	int line = 1;
+	const gchar *s = prog;
+	char name[128];
+	unsigned char buf[sizeof(RobotVMWord) + 1];
+	GArray *code = g_array_new(FALSE, TRUE, sizeof(struct instruction));
+	struct instruction cur;
+	RobotVMWord loc = 0;
+	guint i;
+	struct instruction *p;
+
+	if (!prog) {
+		g_array_unref(code);
+		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_GENERAL, "Null argument");
+		return FALSE;
+	}
+	g_array_set_clear_func(code, instr_clear);
+
+	while (*s) {
+		s = skip_ws(s, &line);
+
+		if (!*s)
+			break;
+
+		cur.loc = loc;
+		cur.code = ROBOT_VM_COMMAND_COUNT;
+		cur.addr = 0;
+		cur.name[0] = 0;
+		cur.sys[0] = 0;
+		cur.line = line;
+		cur.data = NULL;
+
+		if (*s == ':') {
+			++s;
+			if (!(s = read_name(s, cur.name, sizeof(cur.name), line, error))) {
+				g_array_unref(code);
+				return FALSE;
+			}
+
+			s = skip_ws(s, &line);
+			if (*s == '{') {
+				cur.data = g_byte_array_new();
+				s = read_data(s, cur.data, &line, error);
+				if (!s) {
+					g_array_unref(code);
+					return FALSE;
+				}
+
+				loc += cur.data->len;
+			}
+		} else {
+			if (!(s = read_name(s, name, sizeof(name), line, error))) {
+				g_array_unref(code);
+				return FALSE;
+			}
+
+			if (!strcmp(name, "nop")) {
+				cur.code = ROBOT_VM_NOP;
+				++loc;
+			} else if (!strcmp(name, "jump")) {
+				cur.code = ROBOT_VM_JUMP;
+				++loc;
+			} else if (!strcmp(name, "jif")) {
+				cur.code = ROBOT_VM_JIF;
+				++loc;
+			} else if (!strcmp(name, "sys")) {
+				cur.code = ROBOT_VM_SYS;
+				++loc;
+			} else if (!strcmp(name, "call")) {
+				cur.code = ROBOT_VM_CALL;
+				++loc;
+			} else if (!strcmp(name, "ret")) {
+				cur.code = ROBOT_VM_RET;
+				++loc;
+			} else if (!strcmp(name, "push")) {
+				cur.code = ROBOT_VM_PUSH;
+				++loc;
+			} else if (!strcmp(name, "pop")) {
+				cur.code = ROBOT_VM_POP;
+				++loc;
+			} else if (!strcmp(name, "nth")) {
+				cur.code = ROBOT_VM_NTH;
+				++loc;
+			} else if (!strcmp(name, "stop")) {
+				cur.code = ROBOT_VM_STOP;
+				++loc;
+			} else if (!strcmp(name, "load")) {
+				cur.code = ROBOT_VM_CONST;
+				++loc;
+
+				if (!g_ascii_isspace(*s)) {
+					g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX,
+							"Invalid character at %d `%6s'", line, s);
+					g_array_unref(code);
+					return FALSE;
+				}
+
+				/* Get argument */
+				s = skip_ws(s, &line);
+				if (!*s) {
+					g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX,
+							"Waiting for argument at %d", line);
+					g_array_unref(code);
+					return FALSE;
+				}
+
+				if (*s == '@') {
+					++s;
+					s = read_name(s, cur.name, sizeof(cur.name), line, error);
+					if (!s) {
+						g_array_unref(code);
+						return FALSE;
+					}
+				} else if (*s == '%') {
+					++s;
+					s = read_name(s, cur.sys, sizeof(cur.sys), line, error);
+					if (!s) {
+						g_array_unref(code);
+						return FALSE;
+					}
+				} else if (g_ascii_isdigit(*s)) {
+					s = read_num(s, &cur.addr, line, error);
+					if (!s) {
+						g_array_unref(code);
+						return FALSE;
+					}
+				} else {
+					g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX,
+							"Invalid argument at %d `%10s'", line, s);
+					g_array_unref(code);
+					return FALSE;
+				}
+
+				loc += sizeof(RobotVMWord);
+			} else {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX,
+						"Invalid instruction at %d `%s'", line, name);
+				g_array_unref(code);
+				return FALSE;
+			}
+		}
+
+		g_array_append_val(code, cur);
+	}
+
+	g_byte_array_set_size(self->memory, 0);
+
+	/* Ok now we can assemble it. */
+	for (i = 0; i < code->len; i++) {
+		p = &g_array_index(code, struct instruction, i);
+
+		if (p->code != ROBOT_VM_COMMAND_COUNT) {
+			buf[0] = p->code;
+			g_byte_array_append(self->memory, buf, 1);
+		} else {
+			if (p->data) {
+				g_byte_array_append(self->memory, p->data->data, p->data->len);
+			}
+		}
+
+		if (p->code == ROBOT_VM_CONST) {
+			if (p->name[0]) {
+				if (!find_label(code, p->name, &p->addr)) {
+					g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Invalid label at line %d `%s'", p->line, p->name);
+					g_array_unref(code);
+					return FALSE;
+				}
+			} else if (p->sys[0]) {
+				gint x = robot_vm_get_function(self, p->sys);
+				if (x < 0) {
+					g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Invalid syscall at line %d `%s'", p->line, p->sys);
+					g_array_unref(code);
+					return FALSE;
+				}
+				p->addr = x;
+			}
+
+			buf[0] = (p->addr >> 24) & 0xff;
+			buf[1] = (p->addr >> 16) & 0xff;
+			buf[2] = (p->addr >>  8) & 0xff;
+			buf[3] = (p->addr      ) & 0xff;
+			g_byte_array_append(self->memory, buf, 4);
+		}
+	}
+	g_array_unref(code);
+
+	return TRUE;
+}
+
+/* Dump ASM program: */
+gchar* robot_vm_asm_dump(RobotVM *self, GError **error);

@@ -15,6 +15,7 @@ typedef enum _RobotErrorCodes {
 	ROBOT_ERROR_INVALID_ADDRESS,
 	ROBOT_ERROR_EXECUTION_FAULT,
 	ROBOT_ERROR_DIVISION_BY_ZERO,
+	ROBOT_ERROR_SYNTAX,
 	ROBOT_ERROR_STACK
 } RobotErrorCodes;
 
@@ -29,6 +30,7 @@ typedef enum _RobotVMCommand {
 	ROBOT_VM_NTH,    /* Get value from stack at position A to A   */
 	ROBOT_VM_POP,    /* Pop value from stack to A                 */
 	ROBOT_VM_CONST,  /* A = CONST - next memory after instruction */
+	ROBOT_VM_STOP,   /* Stop execution. If a == 0 is return code. */
 
 	ROBOT_VM_COMMAND_COUNT
 } RobotVMCommand;
@@ -87,6 +89,16 @@ gint robot_vm_get_function(RobotVM *self, const char *name);
 gboolean robot_vm_stack_push(RobotVMStack *stack, gconstpointer data, gsize len, GError **error);
 gboolean robot_vm_stack_pop(RobotVMStack *stack, gpointer data, gsize len, GError **error);
 gboolean robot_vm_stack_nth(RobotVMStack *stack, guint idx, gpointer data, gsize len, GError **error);
+
+/* Compile ASM program in current environment: */
+gboolean robot_vm_asm_compile(RobotVM *self, const gchar *prog, GError **error);
+
+/* Execute program throw the end: */
+gboolean robot_vm_exec(RobotVM *self, GError **error);
+/* Execute one program instruction: */
+gboolean robot_vm_step(RobotVM *self, gboolean *stop, GError **error);
+/* Execute program until some syscall: */
+gboolean robot_vm_next(RobotVM *self, gboolean *stop, GError **error);
 
 G_END_DECLS
 
