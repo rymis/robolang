@@ -35,11 +35,6 @@ typedef enum _RobotVMCommand {
 	ROBOT_VM_COMMAND_COUNT
 } RobotVMCommand;
 
-typedef struct _RobotVMStack {
-	GByteArray *stack;
-	gsize top;
-} RobotVMStack;
-
 /* Type conversion macroses: */
 #define ROBOT_TYPE_VM                   (robot_vm_get_type())
 #define ROBOT_VM(obj)                   (G_TYPE_CHECK_INSTANCE_CAST((obj),  ROBOT_TYPE_VM, RobotVM))
@@ -63,8 +58,6 @@ struct _RobotVM {
 	GObject parent_instance;
 
 	GByteArray *memory;   /* VM memory.                                         */
-	RobotVMStack stack;   /* Stack. It is not mapped to memory.                 */
-	RobotVMStack rstack;  /* Return addresses stack                             */
 	RobotVMWord PC;       /* Programming counter - current instruction address  */
 	RobotVMWord T;        /* Stack top address                                  */
 	RobotVMWord A;        /* Address register                                   */
@@ -76,6 +69,16 @@ struct _RobotVMClass {
 	GObjectClass parent_class;
 };
 
+/* Object file: */
+typedef struct _RobotVMObj {
+	RobotVMWord flags;  /* Flags        */
+	GByteArray *text;   /* code segment */
+	GByteArray *data;   /* data segment */
+	GHashTable *sym;    /* symbol table */
+	GHashTable *dsym;   /* data symbols */
+	GByteArray *reloc;  /* relocation table */
+} RobotVMObj;
+
 /** Create new VM and add standard functions */
 RobotVM* robot_vm_new(void);
 /** Create VM and do not add standard functions (why???) */
@@ -86,12 +89,9 @@ guint robot_vm_add_function(RobotVM *self, const char *name, RobotVMFunc func, g
 gboolean robot_vm_has_function(RobotVM *self, const char *name);
 gint robot_vm_get_function(RobotVM *self, const char *name);
 
-gboolean robot_vm_stack_push(RobotVMStack *stack, gconstpointer data, gsize len, GError **error);
-gboolean robot_vm_stack_pop(RobotVMStack *stack, gpointer data, gsize len, GError **error);
-gboolean robot_vm_stack_nth(RobotVMStack *stack, guint idx, gpointer data, gsize len, GError **error);
-
-/* Compile ASM program in current environment: */
-gboolean robot_vm_asm_compile(RobotVM *self, const gchar *prog, GError **error);
+gboolean robot_vm_stack_push(RobotVM *self, gconstpointer data, gsize len, GError **error);
+gboolean robot_vm_stack_pop(RobotVM *self, gpointer data, gsize len, GError **error);
+gboolean robot_vm_stack_nth(RobotVM *self, guint idx, gpointer data, gsize len, GError **error);
 
 /* Execute program throw the end: */
 gboolean robot_vm_exec(RobotVM *self, GError **error);

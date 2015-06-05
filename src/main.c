@@ -4,7 +4,7 @@
 #include <glib-object.h>
 #include "sdl_source.h"
 #include "x_sdl_sprite.h"
-#include "robot_vm.h"
+#include "robot.h"
 
 const unsigned WIDTH = 800;
 const unsigned HEIGHT = 600;
@@ -293,14 +293,16 @@ static int test_vm(void)
 {
 	RobotVM *vm = robot_vm_new();
 	GError *error = NULL;
+	RobotObjFile *obj = robot_obj_file_new();
 
-	if (!robot_vm_asm_compile(vm, test_prog, &error)) {
+	if (!robot_obj_file_compile(obj, test_prog, &error)) {
 		fprintf(stderr, "Error: %s\n", error->message);
 		g_object_unref(vm);
 		return 1;
 	}
 
 	g_object_unref(vm);
+	g_object_unref(obj);
 
 	return 0;
 }
