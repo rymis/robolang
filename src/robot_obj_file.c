@@ -411,6 +411,8 @@ gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **
 			} else if (p->sys[0]) {
 				robot_obj_file_add_syscall(self, p->sys, p->loc);
 				p->addr = 0;
+			} else {
+				robot_obj_file_add_reallocation(self, p->loc);
 			}
 
 			buf[0] = (p->addr >> 24) & 0xff;
@@ -581,20 +583,137 @@ GByteArray* robot_obj_file_to_byte_array(RobotObjFile *self, GError **error)
 	return res;
 }
 
-static gboolean load_word(GByteArray *data, guint idx, RobotVMWord *w, GError **error)
+static gboolean load_word(GByteArray *data, guint *idx_in, RobotVMWord *w, GError **error)
 {
+	guint idx = *idx_in;
+
 	if (idx + 4 > data->len) {
-		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_GENERAL, "Invalid file format");
+		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_GENERAL, "Invalid file format (can not read word)");
 		return FALSE;
 	}
 
 	*w = (data->data[idx] << 24) | (data->data[idx + 1] << 16) | (data->data[idx + 2] << 8) | data->data[idx + 3];
+	*idx_in = idx + 4;
 
 	return TRUE;
 }
 
-gboolean robot_obj_file_from_bytes(RobotObjFile *self, GByteArray *data, GError **error)
+static gboolean load_string(GByteArray *data, guint *idx_in, char *buf, gsize buf_len, GError **error)
 {
+	guint idx = *idx_in;
+	guint i = 0;
 
+	if (idx >= data->len) {
+		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_GENERAL, "Invalid file format (unexpected end of file)");
+		return FALSE;
+	}
+
+	for (;;) {
+		if (i >= buf_len || idx >= data->len) {
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_GENERAL, "Invalid file format (unexpected end of string)");
+			return FALSE;
+		}
+
+		buf[i] = data->data[idx++];
+
+		if (!buf[i])
+			break;
+		++i;
+	}
+
+	*idx_in = idx;
+
+	return TRUE;
+}
+
+gboolean robot_obj_file_from_byte_array(RobotObjFile *self, GByteArray *data, GError **error)
+{
+	guint idx = 0;
+	guint end;
+	RobotObjFileSymbol s;
+	RobotVMWord w;
+	RobotVMWord text_len;
+	RobotVMWord data_len;
+	RobotVMWord sym_len;
+	RobotVMWord reallocation_len;
+	RobotVMWord depends_len;
+
+	/* Clear all the data: */
+	self->flags = 0;
+	self->reserved0 = 0;
+	self->reserved1 = 0;
+	self->reserved2 = 0;
+	self->reserved3 = 0;
+	g_byte_array_set_size(self->text, 0);
+	g_byte_array_set_size(self->data, 0);
+	g_array_set_size(self->sym, 0);
+	g_array_set_size(self->reallocation, 0);
+	g_array_set_size(self->depends, 0);
+
+	/* 1. loading flags and reserved: */
+	if (
+			!load_word(data, &idx, &self->flags, error) ||
+			!load_word(data, &idx, &self->reserved0, error) ||
+			!load_word(data, &idx, &self->reserved1, error) ||
+			!load_word(data, &idx, &self->reserved2, error) ||
+			!load_word(data, &idx, &self->reserved3, error) ||
+			!load_word(data, &idx, &text_len, error) ||
+			!load_word(data, &idx, &data_len, error) ||
+			!load_word(data, &idx, &sym_len, error) ||
+			!load_word(data, &idx, &reallocation_len, error) ||
+			!load_word(data, &idx, &depends_len, error)
+	   ) {
+		return FALSE;
+	}
+
+	if (text_len + data_len + sym_len + reallocation_len + depends_len + idx != data->len) {
+		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_GENERAL, "Invalid object file format (%u != %u)!",
+				(unsigned)text_len + data_len + sym_len + reallocation_len + depends_len + idx,
+				(unsigned)data->len);
+		return FALSE;
+	}
+
+	if (text_len) {
+		g_byte_array_set_size(self->text, text_len);
+		memcpy(self->text->data, data->data + idx, text_len);
+		idx += text_len;
+	}
+
+	if (data_len) {
+		g_byte_array_set_size(self->data, data_len);
+		memcpy(self->data->data, data->data + idx, data_len);
+		idx += data_len;
+	}
+
+	end = idx + sym_len;
+	while (idx < end) {
+		if ( !load_string(data, &idx, s.name, sizeof(s.name), error) ||
+				!load_word(data, &idx, &s.addr, error)) {
+			return FALSE;
+		}
+
+		g_array_append_val(self->sym, s);
+	}
+
+	end = idx + reallocation_len;
+	while (idx < end) {
+		if (!load_word(data, &idx, &w, error)) {
+			return FALSE;
+		}
+
+		g_array_append_val(self->reallocation, w);
+	}
+
+	end = idx + depends_len;
+	while (idx < end) {
+		if ( !load_string(data, &idx, s.name, sizeof(s.name), error) ||
+				!load_word(data, &idx, &s.addr, error)) {
+			return FALSE;
+		}
+
+		g_array_append_val(self->depends, s);
+	}
+
+	return TRUE;
 }
 

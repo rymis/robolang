@@ -294,10 +294,31 @@ static int test_vm(void)
 	RobotVM *vm = robot_vm_new();
 	GError *error = NULL;
 	RobotObjFile *obj = robot_obj_file_new();
+	GByteArray *code;
+	guint i;
 
 	if (!robot_obj_file_compile(obj, test_prog, &error)) {
 		fprintf(stderr, "Error: %s\n", error->message);
 		g_object_unref(vm);
+		return 1;
+	}
+
+	code = robot_obj_file_to_byte_array(obj, &error);
+	if (code) {
+		for (i = 0; i < code->len; i++) {
+			printf("%02x ", code->data[i]);
+			if ((i + 1) % 10 == 0)
+				printf("\n");
+		}
+		printf("\n");
+
+		if (!robot_obj_file_from_byte_array(obj, code, &error)) {
+			fprintf(stderr, "Error: %s\n", error->message);
+			return 1;
+		}
+		g_byte_array_unref(code);
+	} else {
+		fprintf(stderr, "Error: %s\n", error->message);
 		return 1;
 	}
 
