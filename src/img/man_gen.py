@@ -133,3 +133,13 @@ for i in range(20):
 for i in range(11):
     svg2png("rotate-%d" % i)
 
+# Generate test figure:
+svg("test.svg")
+start(80, 80)
+rect(0, 30, 80, 20, 4, "fill:#aa1010")
+rect(30, 0, 20, 80, 4, "fill:#aa1010")
+end()
+_file.close()
+
+svg2png("test")
+

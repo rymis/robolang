@@ -2,6 +2,7 @@
 #define _ROBOT_OBJ_FILE_H_ 1
 
 #include <glib-object.h>
+#include <stdio.h>
 #include "robot_vm.h"
 
 G_BEGIN_DECLS
@@ -39,7 +40,7 @@ struct _RobotObjFile {
 	/* Defined functions and data: */
 	GArray *sym;
 	/* Relocation table: */
-	GArray *reallocation;
+	GArray *relocation;
 	/* Dependencies of this code:
 	 * If dependency name starts with '%' it is system dependency. */
 	GArray *depends;
@@ -66,10 +67,12 @@ gboolean robot_obj_file_add_symbol(RobotObjFile *self, const char *name, RobotVM
 /* Checks if there are this name in current file and adds dependency or reference */
 void robot_obj_file_add_reference(RobotObjFile *self, const char *name, RobotVMWord addr);
 void robot_obj_file_add_syscall(RobotObjFile *self, const char *name, RobotVMWord addr);
-void robot_obj_file_add_reallocation(RobotObjFile *self, RobotVMWord addr);
+void robot_obj_file_add_relocation(RobotObjFile *self, RobotVMWord addr);
 
 GByteArray* robot_obj_file_to_byte_array(RobotObjFile *self, GError **error);
 gboolean robot_obj_file_from_byte_array(RobotObjFile *self, GByteArray *from, GError **error);
+
+gboolean robot_obj_file_dump(RobotObjFile *self, FILE *f, gboolean disasm, GError **error);
 
 G_END_DECLS
 

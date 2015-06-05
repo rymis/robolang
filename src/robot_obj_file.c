@@ -9,13 +9,13 @@ static void finalize(GObject *obj)
 	g_byte_array_unref(self->data);
 	g_byte_array_unref(self->text);
 	g_array_unref(self->sym);
-	g_array_unref(self->reallocation);
+	g_array_unref(self->relocation);
 	g_array_unref(self->depends);
 
 	self->data = NULL;
 	self->text = NULL;
 	self->sym = NULL;
-	self->reallocation = NULL;
+	self->relocation = NULL;
 	self->depends = NULL;
 }
 
@@ -31,7 +31,7 @@ static void robot_obj_file_init(RobotObjFile *self)
 	self->data = g_byte_array_new();
 	self->sym = g_array_new(FALSE, TRUE, sizeof(RobotObjFileSymbol));
 	self->depends = g_array_new(FALSE, TRUE, sizeof(RobotObjFileSymbol));
-	self->reallocation = g_array_new(FALSE, TRUE, sizeof(RobotVMWord));
+	self->relocation = g_array_new(FALSE, TRUE, sizeof(RobotVMWord));
 }
 
 RobotObjFile* robot_obj_file_new(void)
@@ -216,6 +216,24 @@ static void instr_clear(void *p)
  * load value - load value after this instruction into register A. Value could be @label, %sys or integer constant in forms: 0xhex or 1234
  * { aa bb cc dd } - save data at the address. Must be placed directly after label.
  */
+static struct _iinfo {
+	const char *name;
+	RobotVMCommand code;
+} instructions[] = {
+	{ "nop", ROBOT_VM_NOP },
+	{ "jump", ROBOT_VM_JUMP },
+	{ "jif", ROBOT_VM_JIF },
+	{ "sys", ROBOT_VM_SYS },
+	{ "call", ROBOT_VM_CALL },
+	{ "ret", ROBOT_VM_RET },
+	{ "push", ROBOT_VM_PUSH },
+	{ "pop", ROBOT_VM_POP },
+	{ "nth", ROBOT_VM_NTH },
+	{ "stop", ROBOT_VM_STOP },
+
+	{ NULL, 0 }
+};
+
 gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **error)
 {
 	int line = 1;
@@ -226,9 +244,10 @@ gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **
 	struct instruction cur;
 	RobotVMWord loc = 0;
 	guint i;
+	int j;
 	struct instruction *p;
+	static unsigned ROBOT_VM_DATA = ROBOT_VM_COMMAND_COUNT + 1;
 	GByteArray *array = NULL;
-	static int ROBOT_VM_DATA = ROBOT_VM_COMMAND_COUNT + 1;
 
 	if (!prog) {
 		g_array_unref(code);
@@ -246,7 +265,7 @@ gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **
 	g_byte_array_set_size(self->text, 0);
 	g_byte_array_set_size(self->data, 0);
 	g_array_set_size(self->sym, 0);
-	g_array_set_size(self->reallocation, 0);
+	g_array_set_size(self->relocation, 0);
 	g_array_set_size(self->depends, 0);
 
 	while (*s) {
@@ -301,37 +320,7 @@ gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **
 				return FALSE;
 			}
 
-			if (!strcmp(name, "nop")) {
-				cur.code = ROBOT_VM_NOP;
-				++loc;
-			} else if (!strcmp(name, "jump")) {
-				cur.code = ROBOT_VM_JUMP;
-				++loc;
-			} else if (!strcmp(name, "jif")) {
-				cur.code = ROBOT_VM_JIF;
-				++loc;
-			} else if (!strcmp(name, "sys")) {
-				cur.code = ROBOT_VM_SYS;
-				++loc;
-			} else if (!strcmp(name, "call")) {
-				cur.code = ROBOT_VM_CALL;
-				++loc;
-			} else if (!strcmp(name, "ret")) {
-				cur.code = ROBOT_VM_RET;
-				++loc;
-			} else if (!strcmp(name, "push")) {
-				cur.code = ROBOT_VM_PUSH;
-				++loc;
-			} else if (!strcmp(name, "pop")) {
-				cur.code = ROBOT_VM_POP;
-				++loc;
-			} else if (!strcmp(name, "nth")) {
-				cur.code = ROBOT_VM_NTH;
-				++loc;
-			} else if (!strcmp(name, "stop")) {
-				cur.code = ROBOT_VM_STOP;
-				++loc;
-			} else if (!strcmp(name, "load")) {
+			if (!strcmp(name, "load")) {
 				cur.code = ROBOT_VM_CONST;
 				++loc;
 
@@ -380,26 +369,36 @@ gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **
 
 				loc += sizeof(RobotVMWord);
 			} else {
-				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX,
-						"Invalid instruction at %d `%s'", line, name);
-				g_array_unref(code);
-				return FALSE;
+				for (j = 0; instructions[j].name; j++) {
+					if (!strcmp(name, instructions[j].name)) {
+						cur.code = instructions[j].code;
+						++loc;
+						break;
+					}
+				}
+
+				if (!instructions[j].name) {
+					g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX,
+							"Invalid instruction at %d `%s'", line, name);
+					g_array_unref(code);
+					return FALSE;
+				}
 			}
 		}
 
 		g_array_append_val(code, cur);
 	}
 
-	array = g_byte_array_new();
+	array = self->text;
 
 	/* Ok now we can assemble it. */
 	for (i = 0; i < code->len; i++) {
 		p = &g_array_index(code, struct instruction, i);
 
-		if (p->code != ROBOT_VM_COMMAND_COUNT) {
+		if (p->code < ROBOT_VM_COMMAND_COUNT) {
 			buf[0] = p->code;
 			g_byte_array_append(array, buf, 1);
-		} else {
+		} else if (p->code == ROBOT_VM_DATA) {
 			if (p->data) {
 				g_byte_array_append(array, p->data->data, p->data->len);
 			}
@@ -407,12 +406,12 @@ gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **
 
 		if (p->code == ROBOT_VM_CONST) {
 			if (p->name[0]) {
-				robot_obj_file_add_reference(self, p->name, p->loc);
+				robot_obj_file_add_reference(self, p->name, p->loc + 1);
 			} else if (p->sys[0]) {
-				robot_obj_file_add_syscall(self, p->sys, p->loc);
+				robot_obj_file_add_syscall(self, p->sys, p->loc + 1);
 				p->addr = 0;
 			} else {
-				robot_obj_file_add_reallocation(self, p->loc);
+				robot_obj_file_add_relocation(self, p->loc + 1);
 			}
 
 			buf[0] = (p->addr >> 24) & 0xff;
@@ -490,7 +489,7 @@ void robot_obj_file_add_reference(RobotObjFile *self, const char *name, RobotVMW
 	for (i = 0; i < self->sym->len; i++) {
 		if (!strcmp(g_array_index(self->sym, RobotObjFileSymbol, i).name, name)) {
 			write_word(self, addr, g_array_index(self->sym, RobotObjFileSymbol, i).addr);
-			robot_obj_file_add_reallocation(self, addr);
+			robot_obj_file_add_relocation(self, addr);
 			return;
 		}
 	}
@@ -510,9 +509,9 @@ void robot_obj_file_add_syscall(RobotObjFile *self, const char *name, RobotVMWor
 	g_array_append_val(self->depends, s);
 }
 
-void robot_obj_file_add_reallocation(RobotObjFile *self, RobotVMWord addr)
+void robot_obj_file_add_relocation(RobotObjFile *self, RobotVMWord addr)
 {
-	g_array_append_val(self->reallocation, addr);
+	g_array_append_val(self->relocation, addr);
 }
 
 static void append_word(GByteArray *array, RobotVMWord w)
@@ -565,15 +564,15 @@ GByteArray* robot_obj_file_to_byte_array(RobotObjFile *self, GError **error)
 	append_word(res, self->text->len);
 	append_word(res, self->data->len);
 	append_word(res, sym->len);
-	append_word(res, self->reallocation->len * 4);
+	append_word(res, self->relocation->len * 4);
 	append_word(res, depends->len);
 
 	/* Dump sections: */
 	g_byte_array_append(res, self->text->data, self->text->len);
 	g_byte_array_append(res, self->data->data, self->data->len);
 	g_byte_array_append(res, sym->data, sym->len);
-	for (i = 0; i < self->reallocation->len; i++) {
-		append_word(res, g_array_index(self->reallocation, RobotVMWord, i));
+	for (i = 0; i < self->relocation->len; i++) {
+		append_word(res, g_array_index(self->relocation, RobotVMWord, i));
 	}
 	g_byte_array_append(res, depends->data, depends->len);
 
@@ -635,7 +634,7 @@ gboolean robot_obj_file_from_byte_array(RobotObjFile *self, GByteArray *data, GE
 	RobotVMWord text_len;
 	RobotVMWord data_len;
 	RobotVMWord sym_len;
-	RobotVMWord reallocation_len;
+	RobotVMWord relocation_len;
 	RobotVMWord depends_len;
 
 	/* Clear all the data: */
@@ -647,7 +646,7 @@ gboolean robot_obj_file_from_byte_array(RobotObjFile *self, GByteArray *data, GE
 	g_byte_array_set_size(self->text, 0);
 	g_byte_array_set_size(self->data, 0);
 	g_array_set_size(self->sym, 0);
-	g_array_set_size(self->reallocation, 0);
+	g_array_set_size(self->relocation, 0);
 	g_array_set_size(self->depends, 0);
 
 	/* 1. loading flags and reserved: */
@@ -660,15 +659,15 @@ gboolean robot_obj_file_from_byte_array(RobotObjFile *self, GByteArray *data, GE
 			!load_word(data, &idx, &text_len, error) ||
 			!load_word(data, &idx, &data_len, error) ||
 			!load_word(data, &idx, &sym_len, error) ||
-			!load_word(data, &idx, &reallocation_len, error) ||
+			!load_word(data, &idx, &relocation_len, error) ||
 			!load_word(data, &idx, &depends_len, error)
 	   ) {
 		return FALSE;
 	}
 
-	if (text_len + data_len + sym_len + reallocation_len + depends_len + idx != data->len) {
+	if (text_len + data_len + sym_len + relocation_len + depends_len + idx != data->len) {
 		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_GENERAL, "Invalid object file format (%u != %u)!",
-				(unsigned)text_len + data_len + sym_len + reallocation_len + depends_len + idx,
+				(unsigned)text_len + data_len + sym_len + relocation_len + depends_len + idx,
 				(unsigned)data->len);
 		return FALSE;
 	}
@@ -695,13 +694,13 @@ gboolean robot_obj_file_from_byte_array(RobotObjFile *self, GByteArray *data, GE
 		g_array_append_val(self->sym, s);
 	}
 
-	end = idx + reallocation_len;
+	end = idx + relocation_len;
 	while (idx < end) {
 		if (!load_word(data, &idx, &w, error)) {
 			return FALSE;
 		}
 
-		g_array_append_val(self->reallocation, w);
+		g_array_append_val(self->relocation, w);
 	}
 
 	end = idx + depends_len;
@@ -716,4 +715,142 @@ gboolean robot_obj_file_from_byte_array(RobotObjFile *self, GByteArray *data, GE
 
 	return TRUE;
 }
+
+gboolean robot_obj_file_dump(RobotObjFile *self, FILE *f, gboolean disasm, GError **error)
+{
+	guint i, j;
+	RobotObjFileSymbol *s;
+
+	fprintf(f, "FLAGS: %08x\n", (unsigned)self->flags);
+	fprintf(f, "TEXT SIZE: %u\n", (unsigned)self->text->len);
+	fprintf(f, "DATA SIZE: %u\n", (unsigned)self->data->len);
+	fprintf(f, "SYMBOLS COUNT: %u\n", (unsigned)self->sym->len);
+	fprintf(f, "RELOCATIONS COUNT: %u\n", (unsigned)self->relocation->len);
+	fprintf(f, "DEPENDS COUNT: %u\n", (unsigned)self->depends->len);
+
+	if (self->depends->len) {
+		fprintf(f, "DEPENDS:\n");
+		for (i = 0; i < self->depends->len; i++) {
+			s = &g_array_index(self->depends, RobotObjFileSymbol, i);
+			fprintf(f, "\t[%08x] %s\n", (unsigned)s->addr, s->name);
+		}
+	}
+
+	if (self->sym->len) {
+		fprintf(f, "SYMBOLS:\n");
+		for (i = 0; i < self->sym->len; i++) {
+			s = &g_array_index(self->sym, RobotObjFileSymbol, i);
+			fprintf(f, "\t[%08x] %s\n", (unsigned)s->addr, s->name);
+		}
+	}
+
+	if (self->relocation->len) {
+		fprintf(f, "RELOCATIONS:\n");
+		for (i = 0; i < self->relocation->len; i++) {
+			fprintf(f, "\t[%08x]", (unsigned)g_array_index(self->relocation, RobotVMWord, i));
+			if (i && i % 8 == 0)
+				fprintf(f, "\n");
+		}
+		fprintf(f, "\n");
+	}
+
+	if (self->text->len) {
+		fprintf(f, "TEXT:\n");
+		if (!disasm) {
+			for (i = 0; i < self->text->len; i++) {
+				if (i % 16 == 0)
+					fprintf(f, "\n\t");
+				fprintf(f, "%02x ", self->text->data[i]);
+			}
+			fprintf(f, "\n");
+		} else {
+			for (i = 0; i < self->text->len; ) {
+				for (j = 0; j < self->sym->len; j++) {
+					if (g_array_index(self->sym, RobotObjFileSymbol, j).addr == i) {
+						fprintf(f, ":%s\n", g_array_index(self->sym, RobotObjFileSymbol, j).name);
+						break;
+					}
+				}
+
+				if (self->text->data[i] >= ROBOT_VM_COMMAND_COUNT) {
+					fprintf(f, "{");
+					while (i < self->text->len && self->text->data[i] >= ROBOT_VM_COMMAND_COUNT)
+						fprintf(f, " %02x", self->text->data[i++]);
+					fprintf(f, " }\n");
+				} else if (self->text->data[i] == ROBOT_VM_CONST) {
+					if (i + 5 <= self->text->len) {
+						int ok = 0;
+						RobotVMWord w;
+
+						fprintf(f, "load ");
+						++i;
+
+						for (j = 0; j < self->depends->len; j++) {
+							if (g_array_index(self->depends, RobotObjFileSymbol, j).addr == i) {
+								if (g_array_index(self->depends, RobotObjFileSymbol, j).name[0] != '%')
+									fprintf(f, "$");
+								fprintf(f, "%s\n", g_array_index(self->depends, RobotObjFileSymbol, j).name);
+								++ok;
+								break;
+							}
+						}
+
+						if (!ok) {
+							w =
+								(self->text->data[i] << 24) |
+								(self->text->data[i + 1] << 16) |
+								(self->text->data[i + 2] << 8) |
+								(self->text->data[i + 3]);
+							for (j = 0; j < self->sym->len; j++) {
+								if (g_array_index(self->sym, RobotObjFileSymbol, j).addr == w) {
+									fprintf(f, "$%s\n", g_array_index(self->sym, RobotObjFileSymbol, j).name);
+									++ok;
+									break;
+								}
+							}
+						}
+
+						if (!ok) {
+							fprintf(f, "0x%02x%02x%02x%02x\n",
+									self->text->data[i + 0],
+									self->text->data[i + 1],
+									self->text->data[i + 2],
+									self->text->data[i + 3]);
+						}
+
+						i += 4;
+					} else {
+						fprintf(f, "{");
+						while (i < self->text->len)
+							fprintf(f, " %02x", self->text->data[i++]);
+					}
+				} else {
+					for (j = 0; instructions[j].name; j++)
+						if (instructions[j].code == self->text->data[i])
+							break;
+					if (instructions[j].name) {
+						fprintf(f, "%s\n", instructions[j].name);
+					} else {
+						fprintf(f, "{ %02x }\n", self->text->data[i]);
+					}
+
+					i++;
+				}
+			}
+		}
+	}
+
+	if (self->data->len) {
+		fprintf(f, "DATA:");
+		for (i = 0; i < self->data->len; i++) {
+			if (i % 16 == 0)
+				fprintf(f, "\n\t");
+			fprintf(f, "%02x", self->data->data[i]);
+		}
+		fprintf(f, "\n");
+	}
+
+	return TRUE;
+}
+
 
