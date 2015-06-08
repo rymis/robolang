@@ -411,7 +411,8 @@ gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **
 				robot_obj_file_add_syscall(self, p->sys, p->loc + 1);
 				p->addr = 0;
 			} else {
-				robot_obj_file_add_relocation(self, p->loc + 1);
+				/* Here are constant so we don't need to add relocation: */
+				/* robot_obj_file_add_relocation(self, p->loc + 1); */
 			}
 
 			buf[0] = (p->addr >> 24) & 0xff;
@@ -853,4 +854,92 @@ gboolean robot_obj_file_dump(RobotObjFile *self, FILE *f, gboolean disasm, GErro
 	return TRUE;
 }
 
+gboolean robot_obj_file_merge(RobotObjFile *self, RobotObjFile *other, GError **error)
+{
+	gsize offset = 0;
+	gsize off_data = 0;
+	guint i;
+	gsize r;
+	RobotObjFileSymbol *s;
+	GArray *depends = NULL;
+
+	g_return_val_if_fail(self != NULL, FALSE);
+	g_return_val_if_fail(other != NULL, FALSE);
+
+	offset = self->text->len;
+	off_data = self->data->len;
+
+	g_byte_array_append(self->text, other->text->data, other->text->len);
+	g_byte_array_append(self->data, other->data->data, other->data->len);
+
+	/* Process relocations: */
+	for (i = 0; i < other->relocation->len; i++) {
+		r = g_array_index(other->relocation, RobotVMWord, i);
+		if (r >= other->text->len) {
+			r += off_data;
+		}
+		r += offset;
+
+		robot_obj_file_add_relocation(self, r);
+	}
+
+	/* Process symbols: */
+	for (i = 0; i < other->sym->len; i++) {
+		s = &g_array_index(other->sym, RobotObjFileSymbol, i);
+		r = s->addr;
+
+		if (r >= other->text->len) {
+			r += off_data;
+		}
+		r += offset;
+
+		if (!robot_obj_file_add_symbol(self, s->name, r, error)) {
+			return FALSE;
+		}
+	}
+
+	/* Resolve symbols: */
+	/* 1. Save old dependencies and create new ones: */
+	depends = self->depends;
+	self->depends = g_array_new(FALSE, TRUE, sizeof(RobotObjFileSymbol));
+
+	/* 2. Add self dependencies: */
+	for (i = 0; i < depends->len; i++) {
+		s = &g_array_index(depends, RobotObjFileSymbol, i);
+		if (s->name[0] == '%') {
+			robot_obj_file_add_syscall(self, s->name + 1, s->addr);
+		} else {
+			robot_obj_file_add_reference(self, s->name, s->addr);
+		}
+	}
+
+	g_array_unref(depends);
+
+	/* 3. Add others dependencies: */
+	for (i = 0; i < other->depends->len; i++) {
+		s = &g_array_index(other->depends, RobotObjFileSymbol, i);
+		if (s->name[0] == '%') {
+			robot_obj_file_add_syscall(self, s->name + 1, s->addr + offset);
+		} else {
+			robot_obj_file_add_reference(self, s->name, s->addr + offset);
+		}
+	}
+
+	return TRUE;
+}
+
+guint robot_obj_file_dependencies_count(RobotObjFile *self)
+{
+	RobotObjFileSymbol *s;
+	guint i;
+	guint cnt = 0;
+
+	for (i = 0; i < self->depends->len; i++) {
+		s = &g_array_index(self->depends, RobotObjFileSymbol, i);
+		if (s->name[0] != '%')
+			++cnt;
+	};
+
+	return cnt;
+}
 

@@ -9,3 +9,6 @@ TARGET_LINK_LIBRARIES(robot_as ${GLIB_LIBRARIES} robotvm)
 
 ADD_EXECUTABLE(robot_objdump robot_objdump.c)
 TARGET_LINK_LIBRARIES(robot_objdump ${GLIB_LIBRARIES} robotvm)
+
+ADD_EXECUTABLE(robot_ld robot_ld.c)
+TARGET_LINK_LIBRARIES(robot_ld ${GLIB_LIBRARIES} robotvm)

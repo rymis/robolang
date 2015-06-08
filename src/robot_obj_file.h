@@ -61,6 +61,8 @@ RobotObjFile* robot_obj_file_new(void);
 gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **error);
 /* Merge two objects into one: */
 gboolean robot_obj_file_merge(RobotObjFile *self, RobotObjFile *other , GError **error);
+/* Count function dependencies of file. If file has got 0 dependencies it could be run as binary. */
+guint robot_obj_file_dependencies_count(RobotObjFile *self);
 
 /* Low level functions. I don't think you need them but why should I hide ones? */
 gboolean robot_obj_file_add_symbol(RobotObjFile *self, const char *name, RobotVMWord addr, GError **error);
