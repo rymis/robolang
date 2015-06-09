@@ -178,8 +178,64 @@ static const gchar* read_data(const gchar *s, GByteArray *data, int *line, GErro
 
 static const gchar* read_string(const gchar *s, GByteArray *data, int *line, GError **error)
 {
-	/* TODO: */
-	return NULL;
+	unsigned char c;
+
+	++s;
+	while (*s != '"') {
+		if (!*s) {
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "End of file inside the string.");
+			return NULL;
+		}
+
+		if (*s == '\n')
+			++(*line);
+
+		if (*s == '\\') {
+			++s;
+			if (!*s) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "End of file inside escape sequence in string.");
+				return NULL;
+			}
+
+			if (*s == 'n') {
+				c = '\n';
+			} else if (*s == 'r') {
+				c = '\r';
+			} else if (*s == 'a') {
+				c = '\a';
+			} else if (*s == 't') {
+				c = '\t';
+			} else if (*s == 'x') {
+				++s;
+				if (!g_ascii_isxdigit(s[0]) || !g_ascii_isxdigit(s[1])) {
+					g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Invalid escape sequence.");
+					return NULL;
+				}
+				c = g_ascii_xdigit_value(s[0]) * 16 + g_ascii_xdigit_value(s[1]);
+				s++;
+			} else if (*s >= '0' && *s <= '3') {
+				if (s[1] >= '0' && s[1] <= '8' && s[2] >= '0' && s[2] <= '8') {
+					c = (s[0] - '0') * 64 + (s[1] - '0') * 8 + (s[2] - '0');
+				} else {
+					g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Invalid escape sequence.");
+					return NULL;
+				}
+				s += 2;
+			} else {
+				c = *s;
+			}
+		} else {
+			c = *s;
+		}
+
+		g_byte_array_append(data, &c, 1);
+		++s;
+	}
+
+	c = 0;
+	g_byte_array_append(data, &c, 1);
+
+	return s + 1;
 }
 
 struct instruction {
@@ -220,16 +276,55 @@ static struct _iinfo {
 	const char *name;
 	RobotVMCommand code;
 } instructions[] = {
+	/* Main: */
 	{ "nop", ROBOT_VM_NOP },
 	{ "jump", ROBOT_VM_JUMP },
 	{ "jif", ROBOT_VM_JIF },
+	{ "jifnot", ROBOT_VM_JIF },
 	{ "sys", ROBOT_VM_SYS },
 	{ "call", ROBOT_VM_CALL },
 	{ "ret", ROBOT_VM_RET },
 	{ "push", ROBOT_VM_PUSH },
 	{ "pop", ROBOT_VM_POP },
+	{ "pusha", ROBOT_VM_PUSH },
+	{ "popa", ROBOT_VM_POP },
+	{ "pushb", ROBOT_VM_PUSH },
+	{ "popb", ROBOT_VM_POP },
+	{ "pushc", ROBOT_VM_PUSH },
+	{ "popc", ROBOT_VM_POP },
+	{ "w8", ROBOT_VM_W8 },
+	{ "r8", ROBOT_VM_R8 },
+	{ "w16", ROBOT_VM_W16 },
+	{ "r16", ROBOT_VM_R16 },
 	{ "nth", ROBOT_VM_NTH },
 	{ "stop", ROBOT_VM_STOP },
+	{ "swapab", ROBOT_VM_SWAPAB },
+	/* Binary operations: */
+	{ "lshift", ROBOT_VM_LSHIFT },
+	{ "rshift", ROBOT_VM_RSHIFT },
+	{ "sshift", ROBOT_VM_SSHIFT },
+	{ "band", ROBOT_VM_BAND },
+	{ "bor", ROBOT_VM_BOR },
+	{ "bxor", ROBOT_VM_BXOR },
+	{ "bneg", ROBOT_VM_BNEG },
+	/* Logical operations: */
+	{ "and", ROBOT_VM_AND },
+	{ "or", ROBOT_VM_OR },
+	{ "not", ROBOT_VM_NOT },
+	/* Arithmetic operations: */
+	{ "incr", ROBOT_VM_INCR },
+	{ "decr", ROBOT_VM_DECR },
+	{ "add", ROBOT_VM_ADD },
+	{ "sub", ROBOT_VM_SUB },
+	{ "mul", ROBOT_VM_MUL },
+	{ "div", ROBOT_VM_DIV },
+	{ "mod", ROBOT_VM_MOD },
+	/* Stack extendent operations: */
+	{ "reserve", ROBOT_VM_RESERVE },
+	{ "release", ROBOT_VM_RELEASE },
+	/* I/O */
+	{ "out", ROBOT_VM_OUT },
+	{ "in", ROBOT_VM_IN },
 
 	{ NULL, 0 }
 };

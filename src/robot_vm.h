@@ -17,21 +17,61 @@ typedef enum _RobotErrorCodes {
 	ROBOT_ERROR_DIVISION_BY_ZERO,
 	ROBOT_ERROR_SYNTAX,
 	ROBOT_ERROR_IO,
+	ROBOT_ERROR_NAME,
 	ROBOT_ERROR_STACK
 } RobotErrorCodes;
 
 typedef enum _RobotVMCommand {
 	ROBOT_VM_NOP,    /* No operation                              */
 	ROBOT_VM_JUMP,   /* Jump to address                           */
-	ROBOT_VM_JIF,    /* Jump if here are non zero on top of stack */
+	ROBOT_VM_JIF,    /* Jump if here are non zero in B            */
+	ROBOT_VM_JIFNOT, /* Jump if here are non zero in B            */
 	ROBOT_VM_SYS,    /* Call function by number in symtable       */
 	ROBOT_VM_CALL,   /* Call subprogram by address from A         */
 	ROBOT_VM_RET,    /* Return from function                      */
-	ROBOT_VM_PUSH,   /* Push value from A to stack                */
-	ROBOT_VM_NTH,    /* Get value from stack at position A to A   */
-	ROBOT_VM_POP,    /* Pop value from stack to A                 */
+	ROBOT_VM_PUSH,   /* Push value from *A to stack               */
+	ROBOT_VM_POP,    /* Pop value from stack to *A                */
+	ROBOT_VM_PUSHA,  /* Push value from A to stack                */
+	ROBOT_VM_POPA,   /* Pop value from stack to A                 */
+	ROBOT_VM_PUSHB,  /* Push value from B to stack                */
+	ROBOT_VM_POPB,   /* Pop value from stack to B                 */
+	ROBOT_VM_PUSHC,  /* Push value from C to stack                */
+	ROBOT_VM_POPC,   /* Pop value from stack to C                 */
+	ROBOT_VM_W8,     /* Write byte to address. (*A = B)           */
+	ROBOT_VM_R8,     /* Read byte from address. (B = *A)          */
+	ROBOT_VM_W16,    /* Write uint16 to address. (*A = B)         */
+	ROBOT_VM_R16,    /* Read uint16 from address. (B = *A)        */
+	ROBOT_VM_SWAPAB, /* Swap A and B                              */
+	ROBOT_VM_COPY,   /* while (C--) *A = *B;                      */
+	ROBOT_VM_NTH,    /* Get value from stack at offset A to B     */
 	ROBOT_VM_CONST,  /* A = CONST - next memory after instruction */
-	ROBOT_VM_STOP,   /* Stop execution. If a == 0 is return code. */
+	ROBOT_VM_STOP,   /* Stop execution. A is return code.         */
+	/* Binary operations: */
+	ROBOT_VM_LSHIFT, /* A = A << B                                */
+	ROBOT_VM_RSHIFT, /* PUSH(POP() >> POP())                      */
+	ROBOT_VM_SSHIFT, /* PUSH((signed int)POP() >> POP())          */
+	ROBOT_VM_BAND,   /* PUSH(POP() & POP())                       */
+	ROBOT_VM_BOR,    /* PUSH(POP() | POP())                       */
+	ROBOT_VM_BXOR,   /* PUSH(POP() ^ POP())                       */
+	ROBOT_VM_BNEG,   /* PUSH(~POP())                              */
+	/* Logical operations: */
+	ROBOT_VM_AND,    /* PUSH(POP() && POP())                      */
+	ROBOT_VM_OR,     /* PUSH(POP() || POP())                      */
+	ROBOT_VM_NOT,    /* PUSH(!POP())                              */
+	/* Arithmetic operations: */
+	ROBOT_VM_INCR,   /* ++self->A                                 */
+	ROBOT_VM_DECR,   /* --self->A                                 */
+	ROBOT_VM_ADD,    /* PUSH(POP() + POP())                       */
+	ROBOT_VM_SUB,    /* PUSH(POP() - POP())                       */
+	ROBOT_VM_MUL,    /* PUSH(POP() * POP())                       */
+	ROBOT_VM_DIV,    /* PUSH(POP() / POP())                       */
+	ROBOT_VM_MOD,    /* PUSH(POP() % POP())                       */
+	/* Stack extendent operations: */
+	ROBOT_VM_RESERVE,/* T += A                                    */
+	ROBOT_VM_RELEASE,/* T -= A                                    */
+	/* I/O */
+	ROBOT_VM_OUT,    /* Out symbol from stack to console.         */
+	ROBOT_VM_IN,     /* Input symbol from console to stack.       */
 
 	ROBOT_VM_COMMAND_COUNT
 } RobotVMCommand;
@@ -61,7 +101,11 @@ struct _RobotVM {
 	GByteArray *memory;   /* VM memory.                                         */
 	RobotVMWord PC;       /* Programming counter - current instruction address  */
 	RobotVMWord T;        /* Stack top address                                  */
-	RobotVMWord A;        /* Address register                                   */
+	RobotVMWord A;        /* Result, address and operand register               */
+	RobotVMWord B;        /* Operand register                                   */
+	RobotVMWord C;        /* Counter and overflow register                      */
+
+	RobotVMWord stack_end;/* end of stack                                       */
 
 	RobotVMPrivate *priv;
 };
@@ -86,6 +130,10 @@ RobotVM* robot_vm_new(void);
 RobotVM* robot_vm_new_empty(void);
 void robot_vm_add_standard_functions(RobotVM *self);
 
+void robot_vm_allocate_memory(RobotVM *self, gsize len, gsize stack_size);
+typedef struct _RobotObjFile RobotObjFile;
+gboolean robot_vm_load(RobotVM *self, RobotObjFile *obj, GError **error);
+
 guint robot_vm_add_function(RobotVM *self, const char *name, RobotVMFunc func, gpointer userdata, GDestroyNotify free_userdata);
 gboolean robot_vm_has_function(RobotVM *self, const char *name);
 gint robot_vm_get_function(RobotVM *self, const char *name);
@@ -93,6 +141,8 @@ gint robot_vm_get_function(RobotVM *self, const char *name);
 gboolean robot_vm_stack_push(RobotVM *self, gconstpointer data, gsize len, GError **error);
 gboolean robot_vm_stack_pop(RobotVM *self, gpointer data, gsize len, GError **error);
 gboolean robot_vm_stack_nth(RobotVM *self, guint idx, gpointer data, gsize len, GError **error);
+gboolean robot_vm_stack_pop_word(RobotVM *self, RobotVMWord *w, GError **error);
+gboolean robot_vm_stack_push_word(RobotVM *self, RobotVMWord w, GError **error);
 
 /* Execute program throw the end: */
 gboolean robot_vm_exec(RobotVM *self, GError **error);

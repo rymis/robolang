@@ -1,5 +1,16 @@
-#include "robot_vm.h"
+#include "robot.h"
 #include <string.h>
+#include <stdio.h>
+
+static inline RobotVMWord get_word(void *p)
+{
+	return g_ntohl(((guint32*)p)[0]);
+}
+
+static inline void set_word(void *p, RobotVMWord w)
+{
+	((guint32*)p)[0] = w;
+}
 
 GQuark robot_error_get(void)
 {
@@ -151,6 +162,44 @@ static inline gboolean exec(RobotVM *self, GError **error)
 	RobotVMWord a;
 	Symbol *sym;
 
+#define GET(r, addr) \
+	do { \
+		if ((addr) + 4 >= self->memory->len) { \
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "out of memory"); \
+			return FALSE; \
+		} \
+		r = g_ntohl(*((RobotVMWord*)(self->memory->data + (addr)))); \
+	} while (0)
+
+#define PUT(addr, v) \
+	do { \
+		if ((addr) + 4 >= self->memory->len) { \
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "out of memory"); \
+			return FALSE; \
+		} \
+		*((RobotVMWord*)(self->memory->data + (addr))) = g_htonl(v); \
+	} while (0)
+
+#define POP(r) \
+	do { \
+		if (self->T >= self->stack_end) { \
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK, "Stack underflow"); \
+			return FALSE; \
+		} \
+		r = g_ntohl(*((RobotVMWord*)(self->memory->data + self->T))); \
+		self->T += sizeof(RobotVMWord); \
+	} while (0)
+
+#define PUSH(v) \
+	do { \
+		if (self->T < sizeof(RobotVMWord)) { \
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK, "Stack overflow"); \
+			return FALSE; \
+		} \
+		self->T -= sizeof(RobotVMWord); \
+		*((RobotVMWord*)(self->memory->data + self->T)) = g_htonl(v); \
+	} while (0)
+
 	if (self->PC >= self->memory->len) {
 		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT,
 				"Invalid value of PC (%x)", (unsigned)self->PC);
@@ -164,13 +213,18 @@ static inline gboolean exec(RobotVM *self, GError **error)
 
 		case ROBOT_VM_JUMP:   /* Jump to address                           */
 			self->PC = self->A;
+
 			break;
 
 		case ROBOT_VM_JIF:    /* Jump if here are non zero on top of stack */
-			if (!robot_vm_stack_pop(self, &a, sizeof(RobotVMWord), error)) {
-				return FALSE;
-			}
-			if (a)
+			if (self->B)
+				self->PC = self->A;
+			else
+				++self->PC;
+			break;
+
+		case ROBOT_VM_JIFNOT:    /* Jump if here are non zero on top of stack */
+			if (!self->B)
 				self->PC = self->A;
 			else
 				++self->PC;
@@ -193,34 +247,109 @@ static inline gboolean exec(RobotVM *self, GError **error)
 
 		case ROBOT_VM_CALL:   /* Call function by address       */
 			++self->PC;
-			if (!robot_vm_stack_push(self, &self->PC, sizeof(RobotVMWord), error)) {
-				return FALSE;
-			}
+
+			PUSH(self->PC);
 			self->PC = self->A;
+
 			break;
 
 		case ROBOT_VM_RET:    /* Return from function                      */
-			if (!robot_vm_stack_pop(self, &self->PC, sizeof(RobotVMWord), error)) {
-				return FALSE;
-			}
+			POP(self->PC);
 			break;
 
 		case ROBOT_VM_PUSH:   /* Push value from A to stack                */
-			if (!robot_vm_stack_push(self, &self->A, sizeof(RobotVMWord), error)) {
-				return FALSE;
-			}
-			++self->PC;
-			break;
-
-		case ROBOT_VM_NTH:    /* Get value from stack to A                 */
-			if (!robot_vm_stack_nth(self, self->A, &self->A, sizeof(RobotVMWord), error)) {
-				return FALSE;
-			}
+			GET(a, self->A);
+			PUSH(a);
 			++self->PC;
 			break;
 
 		case ROBOT_VM_POP:    /* Pop value from stack to A                 */
-			if (!robot_vm_stack_pop(self, &self->A, sizeof(RobotVMWord), error)) {
+			POP(a);
+			PUT(self->A, a);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_PUSHA:  /* Push value from A to stack                */
+			PUSH(self->A);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_POPA:   /* Pop value from stack to A                 */
+			POP(self->A);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_PUSHB:  /* Push value from B to stack                */
+			PUSH(self->B);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_POPB:   /* Pop value from stack to B                 */
+			POP(self->B);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_PUSHC:  /* Push value from C to stack                */
+			PUSH(self->C);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_POPC:   /* Pop value from stack to C                 */
+			POP(self->C);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_W8:  /* Write byte to address. (*A = B)           */
+			if (self->A >= self->memory->len) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Write out of memory");
+				return FALSE;
+			}
+			self->memory->data[self->A] = self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_R8:  /* Read byte from address. (B = *A)          */
+			if (self->A >= self->memory->len) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Write out of memory");
+				return FALSE;
+			}
+			self->B = self->memory->data[self->A];
+			++self->PC;
+			break;
+
+		case ROBOT_VM_W16:    /* Write uint16 to address. (*A = B)         */
+			if (self->A + 1 >= self->memory->len) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Write out of memory");
+				return FALSE;
+			}
+			self->memory->data[self->A] = self->B >> 8;
+			self->memory->data[self->A + 1] = self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_R16:    /* Read uint16 from address. (B = *A)        */
+			if (self->A + 1 >= self->memory->len) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Write out of memory");
+				return FALSE;
+			}
+			self->B = (self->memory->data[self->A] << 8) + self->memory->data[self->A + 1];
+			++self->PC;
+			break;
+
+		case ROBOT_VM_SWAPAB: /* Swap A and B                              */
+			a = self->A;
+			self->A = self->B;
+			self->B = a;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_COPY:   /* while (C--) *A = *B;                      */
+			++self->PC;
+			break;
+
+		case ROBOT_VM_NTH:    /* Get value from stack to A                 */
+			/** TODO: **/
+			if (!robot_vm_stack_nth(self, self->A, &self->A, sizeof(RobotVMWord), error)) {
 				return FALSE;
 			}
 			++self->PC;
@@ -228,23 +357,144 @@ static inline gboolean exec(RobotVM *self, GError **error)
 
 		case ROBOT_VM_CONST:    /* Load constant to A from memory */
 			++self->PC;
-			if (self->PC + sizeof(RobotVMWord) >= self->memory->len) {
-				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_INVALID_ADDRESS,
-						"Out of memory: %x", (unsigned)self->PC);
-				return FALSE;
-			}
-
-			self->A =
-				(self->memory->data[self->PC] << 24) |
-				(self->memory->data[self->PC + 1] << 16) |
-				(self->memory->data[self->PC + 2] << 8) |
-				(self->memory->data[self->PC + 3]);
+			GET(self->A, self->PC);
 			self->PC += sizeof(RobotVMWord);
 			break;
 
 		case ROBOT_VM_STOP:    /* Stop machine */
 			++self->PC;
 			self->priv->stop = TRUE;
+			break;
+
+		/* Binary operations: */
+		case ROBOT_VM_LSHIFT:
+			self->A = self->A << (self->B & 31);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_RSHIFT:
+			self->A = self->A >> (self->B & 31);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_SSHIFT:
+			self->A = ((gint32)self->A) >> (self->B & 31);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_BAND:
+			self->A = self->A & self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_BOR:
+			self->A = self->A | self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_BXOR:
+			self->A = self->A ^ self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_BNEG:
+			self->A = ~self->A;
+			++self->PC;
+			break;
+
+		/* Logical operations: */
+		case ROBOT_VM_AND:
+			self->A = self->A && self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_OR:
+			self->A = self->A || self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_NOT:
+			self->A = !self->A;
+			++self->PC;
+			break;
+
+		/* Arithmetic operations: */
+		case ROBOT_VM_INCR:   /* ++self->A                                 */
+			++self->A;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_DECR:   /* --self->A                                 */
+			--self->A;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_ADD:
+			/* TODO: overflow! */
+			self->A += self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_SUB:
+			/* TODO: overflow! */
+			self->A -= self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_MUL:
+			/* TODO: overflow! */
+			self->A *= self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_DIV:    /* PUSH(POP() / POP())                       */
+			if (!self->B) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Division by zero");
+				return FALSE;
+			}
+			self->A /= self->B;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_MOD:    /* PUSH(POP() % POP())                       */
+			if (!self->B) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Division by zero");
+				return FALSE;
+			}
+			self->A %= self->B;
+			++self->PC;
+			break;
+
+		/* Stack extendent operations: */
+		case ROBOT_VM_RESERVE:/* T += A                                    */
+			if (self->T < self->A) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK, "Stack overflow");
+				return FALSE;
+			}
+			self->T -= self->A;
+			++self->PC;
+			break;
+
+		case ROBOT_VM_RELEASE:/* T -= A                                    */
+			if (self->T + self->A >= self->stack_end) {
+				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK, "Stack overflow");
+				return FALSE;
+			}
+			self->T += self->A;
+			++self->PC;
+			break;
+
+		/* I/O */
+		case ROBOT_VM_OUT:    /* Out symbol from stack to console.         */
+			/* TODO: unicode! */
+			putchar(self->A);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_IN:     /* Input symbol from console to stack.       */
+			/* TODO: unicode! */
+			self->A = getchar();
+			++self->PC;
 			break;
 
 		default:
@@ -315,6 +565,12 @@ gboolean robot_vm_stack_push(RobotVM *self, gconstpointer data, gsize len, GErro
 	return TRUE;
 }
 
+gboolean robot_vm_stack_push_word(RobotVM *self, RobotVMWord w, GError **error)
+{
+	w = g_htonl(w);
+	return robot_vm_stack_push(self, &w, sizeof(RobotVMWord), error);
+}
+
 gboolean robot_vm_stack_pop(RobotVM *self, gpointer data, gsize len, GError **error)
 {
 	if (self->T + len >= self->memory->len) { /* TODO: stack size */
@@ -327,6 +583,14 @@ gboolean robot_vm_stack_pop(RobotVM *self, gpointer data, gsize len, GError **er
 	self->T += len;
 
 	return TRUE;
+}
+
+gboolean robot_vm_stack_pop_word(RobotVM *self, RobotVMWord *w, GError **error)
+{
+	gboolean res = robot_vm_stack_pop(self, w, sizeof(RobotVMWord), error);
+	if (res)
+		*w = g_ntohl(*w);
+	return res;
 }
 
 gboolean robot_vm_stack_nth(RobotVM *self, guint idx, gpointer data, gsize len, GError **error)
@@ -421,5 +685,80 @@ void robot_vm_add_standard_functions(RobotVM *self)
 	for (i = 0; std_funcs[i].name; i++) {
 		robot_vm_add_function(self, std_funcs[i].name, std_funcs[i].func, std_funcs[i].userdata, NULL);
 	}
+}
+
+void robot_vm_allocate_memory(RobotVM *self, gsize len, gsize stack_size)
+{
+	if (len > self->memory->len) {
+		g_byte_array_set_size(self->memory, len);
+	}
+	self->stack_end = stack_size;
+}
+
+gboolean robot_vm_load(RobotVM *self, RobotObjFile *obj, GError **error)
+{
+	gsize sz = 2;
+	gsize sz2 = 2;
+	gsize s;
+	guint i;
+	RobotVMWord w, r;
+	RobotObjFileSymbol *sym;
+
+	for (i = 0; i < obj->depends->len; i++) {
+		sym = &g_array_index(obj->depends, RobotObjFileSymbol, i);
+		if (sym->name[0] != '%') {
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_NAME, "Unresolved: %s", sym->name);
+			return FALSE;
+		}
+
+		if (!robot_vm_has_function(self, sym->name + 1)) {
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_NAME, "Unresolved syscall: %s", sym->name);
+			return FALSE;
+		}
+	}
+
+	while (sz > 1 && sz < obj->text->len)
+		sz <<= 1;
+	while (sz2 > 1 && sz2 < obj->data->len)
+		sz2 <<= 1;
+
+	s = sz + sz2 + 0x1000 + 0x10000;
+	if (self->memory->len < s) {
+		robot_vm_allocate_memory(self, s, 0x1000);
+	}
+
+	self->PC = self->stack_end;
+	self->T = self->stack_end;
+
+	/* Load text and data segments: */
+	memcpy(self->memory->data + self->stack_end, obj->text->data, obj->text->len);
+	memcpy(self->memory->data + self->stack_end + sz, obj->data->data, obj->data->len);
+
+	/* Process relocations: */
+	for (i = 0; i < obj->relocation->len; i++) {
+		r = g_array_index(obj->relocation, RobotVMWord, i);
+		r += self->stack_end;
+
+		if (r < obj->data->len) {
+			GET(w, r);
+			w += self->stack_end;
+			PUT(r, w);
+		} else {
+			r += sz;
+			r -= obj->data->len;
+
+			GET(w, r);
+			w += self->stack_end + sz;
+			PUT(r, w);
+		}
+	}
+
+	for (i = 0; i < obj->depends->len; i++) {
+		sym = &g_array_index(obj->depends, RobotObjFileSymbol, i);
+
+		PUT(sym->addr + self->stack_end, robot_vm_get_function(self, sym->name + 1));
+	}
+
+	return TRUE;
 }
 
