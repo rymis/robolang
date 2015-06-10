@@ -76,6 +76,8 @@ gboolean robot_obj_file_from_byte_array(RobotObjFile *self, GByteArray *from, GE
 
 gboolean robot_obj_file_dump(RobotObjFile *self, FILE *f, gboolean disasm, GError **error);
 
+const gchar* robot_instruction_to_string(const guint8 instr, gchar *buf, gsize len);
+
 G_END_DECLS
 
 #endif /* ROBOT_OBJ_FILE_H */

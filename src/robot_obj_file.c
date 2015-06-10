@@ -41,6 +41,9 @@ RobotObjFile* robot_obj_file_new(void)
 	return self;
 }
 
+static RobotObjFileSymbol *get_sym(RobotObjFile *self, const char *name);
+static void add_depend(RobotObjFile *self, const char *name, RobotVMWord addr);
+
 static const gchar* skip_ws(const gchar* s, int *line)
 {
 	for (;;) {
@@ -280,23 +283,24 @@ static struct _iinfo {
 	{ "nop", ROBOT_VM_NOP },
 	{ "jump", ROBOT_VM_JUMP },
 	{ "jif", ROBOT_VM_JIF },
-	{ "jifnot", ROBOT_VM_JIF },
+	{ "jifnot", ROBOT_VM_JIFNOT },
 	{ "sys", ROBOT_VM_SYS },
 	{ "call", ROBOT_VM_CALL },
 	{ "ret", ROBOT_VM_RET },
 	{ "push", ROBOT_VM_PUSH },
 	{ "pop", ROBOT_VM_POP },
-	{ "pusha", ROBOT_VM_PUSH },
-	{ "popa", ROBOT_VM_POP },
-	{ "pushb", ROBOT_VM_PUSH },
-	{ "popb", ROBOT_VM_POP },
-	{ "pushc", ROBOT_VM_PUSH },
-	{ "popc", ROBOT_VM_POP },
+	{ "pusha", ROBOT_VM_PUSHA },
+	{ "popa", ROBOT_VM_POPA },
+	{ "pushb", ROBOT_VM_PUSHB },
+	{ "popb", ROBOT_VM_POPB },
+	{ "pushc", ROBOT_VM_PUSHC },
+	{ "popc", ROBOT_VM_POPC },
 	{ "w8", ROBOT_VM_W8 },
 	{ "r8", ROBOT_VM_R8 },
 	{ "w16", ROBOT_VM_W16 },
 	{ "r16", ROBOT_VM_R16 },
-	{ "nth", ROBOT_VM_NTH },
+	{ "getnth", ROBOT_VM_GETNTH },
+	{ "setnth", ROBOT_VM_SETNTH },
 	{ "stop", ROBOT_VM_STOP },
 	{ "swapab", ROBOT_VM_SWAPAB },
 	/* Binary operations: */
@@ -501,7 +505,13 @@ gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **
 
 		if (p->code == ROBOT_VM_CONST) {
 			if (p->name[0]) {
-				robot_obj_file_add_reference(self, p->name, p->loc + 1);
+				RobotObjFileSymbol *s = get_sym(self, p->name);
+				if (s) {
+					p->addr = s->addr;
+					robot_obj_file_add_relocation(self, p->loc + 1);
+				} else {
+					add_depend(self, p->name, p->loc + 1);
+				}
 			} else if (p->sys[0]) {
 				robot_obj_file_add_syscall(self, p->sys, p->loc + 1);
 				p->addr = 0;
@@ -521,6 +531,38 @@ gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **
 	g_array_unref(code);
 
 	return TRUE;
+}
+
+const gchar* robot_instruction_to_string(const guint8 instr, gchar *buf, gsize len)
+{
+	int i;
+
+	if (instr == ROBOT_VM_CONST) {
+		if (buf) {
+			snprintf(buf, len, "load");
+			return buf;
+		} else {
+			return "load";
+		}
+	}
+
+	for (i = 0; instructions[i].name; i++) {
+		if (instructions[i].code == instr) {
+			if (buf) {
+				snprintf(buf, len, "%s", instructions[i].name);
+				return buf;
+			} else {
+				return instructions[i].name;
+			}
+		}
+	}
+
+	if (buf) {
+		snprintf(buf, len, "${UNKNOWN %02X}$", instr);
+		return buf;
+	} else {
+		return "${UNKNOWN INSTRUCTION}$";
+	}
 }
 
 /* Low level functions. I don't think you need them but why should I hide ones? */
@@ -572,6 +614,23 @@ static gboolean write_word(RobotObjFile *self, RobotVMWord addr, RobotVMWord w)
 	return TRUE;
 }
 
+static RobotObjFileSymbol *get_sym(RobotObjFile *self, const char *name)
+{
+	RobotObjFileSymbol s;
+	guint i;
+
+	strncpy(s.name, name, sizeof(s.name));
+	s.name[sizeof(s.name) - 1] = 0;
+
+	for (i = 0; i < self->sym->len; i++) {
+		if (!strcmp(g_array_index(self->sym, RobotObjFileSymbol, i).name, name)) {
+			return &g_array_index(self->sym, RobotObjFileSymbol, i);
+		}
+	}
+
+	return NULL;
+}
+
 /* Checks if there are this name in current file and adds dependency or reference */
 void robot_obj_file_add_reference(RobotObjFile *self, const char *name, RobotVMWord addr)
 {
@@ -589,6 +648,17 @@ void robot_obj_file_add_reference(RobotObjFile *self, const char *name, RobotVMW
 			return;
 		}
 	}
+
+	g_array_append_val(self->depends, s);
+}
+
+static void add_depend(RobotObjFile *self, const char *name, RobotVMWord addr)
+{
+	RobotObjFileSymbol s;
+
+	strncpy(s.name, name, sizeof(s.name));
+	s.name[sizeof(s.name) - 1] = 0;
+	s.addr = addr;
 
 	g_array_append_val(self->depends, s);
 }

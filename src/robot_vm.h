@@ -43,7 +43,8 @@ typedef enum _RobotVMCommand {
 	ROBOT_VM_R16,    /* Read uint16 from address. (B = *A)        */
 	ROBOT_VM_SWAPAB, /* Swap A and B                              */
 	ROBOT_VM_COPY,   /* while (C--) *A = *B;                      */
-	ROBOT_VM_NTH,    /* Get value from stack at offset A to B     */
+	ROBOT_VM_GETNTH, /* Get value from stack at offset A to B     */
+	ROBOT_VM_SETNTH, /* Get value from stack at offset A to B     */
 	ROBOT_VM_CONST,  /* A = CONST - next memory after instruction */
 	ROBOT_VM_STOP,   /* Stop execution. A is return code.         */
 	/* Binary operations: */

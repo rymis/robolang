@@ -347,11 +347,13 @@ static inline gboolean exec(RobotVM *self, GError **error)
 			++self->PC;
 			break;
 
-		case ROBOT_VM_NTH:    /* Get value from stack to A                 */
-			/** TODO: **/
-			if (!robot_vm_stack_nth(self, self->A, &self->A, sizeof(RobotVMWord), error)) {
-				return FALSE;
-			}
+		case ROBOT_VM_GETNTH:    /* Get value from stack to A                 */
+			GET(self->B, self->T + self->A);
+			++self->PC;
+			break;
+
+		case ROBOT_VM_SETNTH:    /* Get value from stack to A                 */
+			PUT(self->T + self->A, self->B);
 			++self->PC;
 			break;
 
@@ -737,15 +739,16 @@ gboolean robot_vm_load(RobotVM *self, RobotObjFile *obj, GError **error)
 	/* Process relocations: */
 	for (i = 0; i < obj->relocation->len; i++) {
 		r = g_array_index(obj->relocation, RobotVMWord, i);
-		r += self->stack_end;
 
-		if (r < obj->data->len) {
+		if (r < obj->text->len) {
+			r += self->stack_end;
 			GET(w, r);
 			w += self->stack_end;
 			PUT(r, w);
 		} else {
+			r += self->stack_end;
 			r += sz;
-			r -= obj->data->len;
+			r -= obj->text->len;
 
 			GET(w, r);
 			w += self->stack_end + sz;
