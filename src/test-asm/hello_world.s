@@ -1,35 +1,30 @@
 # Simple test: hello world
 
-# Go to real_start:
-load @real_start
-jump
+.text
 
-# Data string:
+# r2 = 0
+xor r2 r2 r2
+load r2 00 08
+add r0 r0 r2
+:constant
+const @hello
+
+load r5 00 08
+
+add r4 r0 r5     # Address of loop
+
+neg r3 r3
+out r3
+# loop-start:
+read8 r3 r2      # Read character
+incr r2          # Increment pointer
+neg r3 r3        # r3 = ~r3
+moveif r0 r4 r3  # if (r3) jump loop
+
+xor r4 r4 r4
+stop r4
+
+.data
 :hello
 "Hello, world!\n"
-
-:real_start
-load @hello  # A = &hello
-pusha        # PUSH(A)
-
-:loop
-popa         # A = TOP()
-r8           # B = *A
-incr         # ++A
-pusha        # PUSH(A)
-
-# if char is 0 break
-load @break  # A = &break
-jifnot       # if (!B) jump
-
-swapab       # A, B = B, A
-out          # putchar(A)
-
-load @loop   # A = &loop
-jump         # jump
-
-:break
-popa         # Stack is in original state
-load 0       # A = 0
-stop         # exit(A)
 

@@ -81,22 +81,13 @@ static void robot_vm_init(RobotVM *self)
 
 	g_array_set_clear_func(self->priv->symtable, symbol_clear);
 
-	self->PC = 0;
+	self->R[0] = 0;
 	self->memory = g_byte_array_new();
 }
 
 RobotVM* robot_vm_new(void)
 {
-	RobotVM *self = robot_vm_new_empty();
-
-	robot_vm_add_standard_functions(self);
-
-	return self;
-}
-
-RobotVM* robot_vm_new_empty(void)
-{
-	RobotVM* self = g_object_new(ROBOT_TYPE_VM, NULL);
+	RobotVM *self = g_object_new(ROBOT_TYPE_VM, NULL);
 
 	return self;
 }
@@ -161,6 +152,8 @@ static inline gboolean exec(RobotVM *self, GError **error)
 {
 	RobotVMWord a;
 	Symbol *sym;
+	RobotVMCommand cmd;
+	guint8 A, B, C;
 
 #define GET(r, addr) \
 	do { \
@@ -180,328 +173,176 @@ static inline gboolean exec(RobotVM *self, GError **error)
 		*((RobotVMWord*)(self->memory->data + (addr))) = g_htonl(v); \
 	} while (0)
 
-#define POP(r) \
-	do { \
-		if (self->T >= self->stack_end) { \
-			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK, "Stack underflow"); \
-			return FALSE; \
-		} \
-		r = g_ntohl(*((RobotVMWord*)(self->memory->data + self->T))); \
-		self->T += sizeof(RobotVMWord); \
-	} while (0)
-
-#define PUSH(v) \
-	do { \
-		if (self->T < sizeof(RobotVMWord)) { \
-			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK, "Stack overflow"); \
-			return FALSE; \
-		} \
-		self->T -= sizeof(RobotVMWord); \
-		*((RobotVMWord*)(self->memory->data + self->T)) = g_htonl(v); \
-	} while (0)
-
-	if (self->PC >= self->memory->len) {
+	if (self->R[0] + 4 > self->memory->len) {
 		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT,
-				"Invalid value of PC (%x)", (unsigned)self->PC);
+				"Invalid value of PC (%x)", (unsigned)self->R[0]);
 		return FALSE;
 	}
 
-	switch (self->memory->data[self->PC]) {
+	cmd = self->memory->data[self->R[0]++];
+	A = self->memory->data[self->R[0]++] & 0x1f;
+	B = self->memory->data[self->R[0]++] & 0x1f;
+	C = self->memory->data[self->R[0]++] & 0x1f;
+	switch (cmd) {
 		case ROBOT_VM_NOP:    /* No operation                              */
-			++self->PC;
 			break;
 
-		case ROBOT_VM_JUMP:   /* Jump to address                           */
-			self->PC = self->A;
-
+		case ROBOT_VM_LOAD:
+			self->R[A] = (self->memory->data[self->R[0] - 2] << 16) | self->memory->data[self->R[0] - 1];
 			break;
 
-		case ROBOT_VM_JIF:    /* Jump if here are non zero on top of stack */
-			if (self->B)
-				self->PC = self->A;
-			else
-				++self->PC;
-			break;
-
-		case ROBOT_VM_JIFNOT:    /* Jump if here are non zero on top of stack */
-			if (!self->B)
-				self->PC = self->A;
-			else
-				++self->PC;
-			break;
-
-		case ROBOT_VM_SYS:   /* Call function by number in symtable       */
-			if (self->priv->symtable->len <= self->A) {
+		case ROBOT_VM_EXT:   /* Call function by number in symtable       */
+			if (self->priv->symtable->len <= self->R[A]) {
 				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_INVALID_ADDRESS,
-						"Invalid function reference: %u\n", (unsigned)self->A);
+						"Invalid function reference: %u\n", (unsigned)self->R[A]);
 				return FALSE;
 			}
-			sym = &g_array_index(self->priv->symtable, Symbol, self->A);
+			sym = &g_array_index(self->priv->symtable, Symbol, self->R[A]);
 			if (!sym->func) {
 				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Invalid function");
 				return FALSE;
 			}
 
-			++self->PC;
 			return sym->func(self, sym->userdata, error);
 
-		case ROBOT_VM_CALL:   /* Call function by address       */
-			++self->PC;
-
-			PUSH(self->PC);
-			self->PC = self->A;
-
-			break;
-
-		case ROBOT_VM_RET:    /* Return from function                      */
-			POP(self->PC);
-			break;
-
-		case ROBOT_VM_PUSH:   /* Push value from A to stack                */
-			GET(a, self->A);
-			PUSH(a);
-			++self->PC;
-			break;
-
-		case ROBOT_VM_POP:    /* Pop value from stack to A                 */
-			POP(a);
-			PUT(self->A, a);
-			++self->PC;
-			break;
-
-		case ROBOT_VM_PUSHA:  /* Push value from A to stack                */
-			PUSH(self->A);
-			++self->PC;
-			break;
-
-		case ROBOT_VM_POPA:   /* Pop value from stack to A                 */
-			POP(self->A);
-			++self->PC;
-			break;
-
-		case ROBOT_VM_PUSHB:  /* Push value from B to stack                */
-			PUSH(self->B);
-			++self->PC;
-			break;
-
-		case ROBOT_VM_POPB:   /* Pop value from stack to B                 */
-			POP(self->B);
-			++self->PC;
-			break;
-
-		case ROBOT_VM_PUSHC:  /* Push value from C to stack                */
-			PUSH(self->C);
-			++self->PC;
-			break;
-
-		case ROBOT_VM_POPC:   /* Pop value from stack to C                 */
-			POP(self->C);
-			++self->PC;
-			break;
-
 		case ROBOT_VM_W8:  /* Write byte to address. (*A = B)           */
-			if (self->A >= self->memory->len) {
+			if (self->R[A] >= self->memory->len) {
 				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Write out of memory");
 				return FALSE;
 			}
-			self->memory->data[self->A] = self->B;
-			++self->PC;
+			self->memory->data[self->R[A]] = self->R[B];
 			break;
 
 		case ROBOT_VM_R8:  /* Read byte from address. (B = *A)          */
-			if (self->A >= self->memory->len) {
+			if (self->R[A] >= self->memory->len) {
 				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Write out of memory");
 				return FALSE;
 			}
-			self->B = self->memory->data[self->A];
-			++self->PC;
+			self->R[B] = self->memory->data[self->R[A]];
 			break;
 
 		case ROBOT_VM_W16:    /* Write uint16 to address. (*A = B)         */
-			if (self->A + 1 >= self->memory->len) {
+			if (self->R[A] + 1 >= self->memory->len) {
 				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Write out of memory");
 				return FALSE;
 			}
-			self->memory->data[self->A] = self->B >> 8;
-			self->memory->data[self->A + 1] = self->B;
-			++self->PC;
+			self->memory->data[self->R[A]] = self->R[B] >> 8;
+			self->memory->data[self->R[A] + 1] = self->R[B];
 			break;
 
 		case ROBOT_VM_R16:    /* Read uint16 from address. (B = *A)        */
-			if (self->A + 1 >= self->memory->len) {
+			if (self->R[A] + 1 >= self->memory->len) {
 				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Write out of memory");
 				return FALSE;
 			}
-			self->B = (self->memory->data[self->A] << 8) + self->memory->data[self->A + 1];
-			++self->PC;
+			self->R[B] = (self->memory->data[self->R[A]] << 8) + self->memory->data[self->R[A] + 1];
 			break;
 
-		case ROBOT_VM_SWAPAB: /* Swap A and B                              */
-			a = self->A;
-			self->A = self->B;
-			self->B = a;
-			++self->PC;
+		case ROBOT_VM_W32:
+			PUT(self->R[B], self->R[A]);
 			break;
 
-		case ROBOT_VM_COPY:   /* while (C--) *A = *B;                      */
-			++self->PC;
+		case ROBOT_VM_R32:
+			GET(self->R[A], self->R[B]);
 			break;
 
-		case ROBOT_VM_GETNTH:    /* Get value from stack to A                 */
-			GET(self->B, self->T + self->A);
-			++self->PC;
+		case ROBOT_VM_SWAP: /* Swap A and B                              */
+			a = self->R[A];
+			self->R[A] = self->R[B];
+			self->R[B] = a;
 			break;
 
-		case ROBOT_VM_SETNTH:    /* Get value from stack to A                 */
-			PUT(self->T + self->A, self->B);
-			++self->PC;
+		case ROBOT_VM_MOVE:
+			self->R[A] = self->R[B];
 			break;
 
-		case ROBOT_VM_CONST:    /* Load constant to A from memory */
-			++self->PC;
-			GET(self->A, self->PC);
-			self->PC += sizeof(RobotVMWord);
+		case ROBOT_VM_MOVEIF:
+			if (self->R[C])
+				self->R[A] = self->R[B];
 			break;
 
-		case ROBOT_VM_STOP:    /* Stop machine */
-			++self->PC;
+		case ROBOT_VM_STOP:
 			self->priv->stop = TRUE;
 			break;
 
 		/* Binary operations: */
 		case ROBOT_VM_LSHIFT:
-			self->A = self->A << (self->B & 31);
-			++self->PC;
+			self->R[A] = self->R[B] << (self->R[C] & 31);
 			break;
 
 		case ROBOT_VM_RSHIFT:
-			self->A = self->A >> (self->B & 31);
-			++self->PC;
+			self->R[A] = self->R[B] >> (self->R[C] & 31);
 			break;
 
 		case ROBOT_VM_SSHIFT:
-			self->A = ((gint32)self->A) >> (self->B & 31);
-			++self->PC;
+			self->R[A] = ((gint32)self->R[B]) >> (self->R[C] & 31);
 			break;
 
 		case ROBOT_VM_BAND:
-			self->A = self->A & self->B;
-			++self->PC;
+			self->R[A] = self->R[B] & self->R[C];
 			break;
 
 		case ROBOT_VM_BOR:
-			self->A = self->A | self->B;
-			++self->PC;
+			self->R[A] = self->R[B] | self->R[C];
 			break;
 
 		case ROBOT_VM_BXOR:
-			self->A = self->A ^ self->B;
-			++self->PC;
+			self->R[A] = self->R[B] ^ self->R[C];
 			break;
 
 		case ROBOT_VM_BNEG:
-			self->A = ~self->A;
-			++self->PC;
-			break;
-
-		/* Logical operations: */
-		case ROBOT_VM_AND:
-			self->A = self->A && self->B;
-			++self->PC;
-			break;
-
-		case ROBOT_VM_OR:
-			self->A = self->A || self->B;
-			++self->PC;
-			break;
-
-		case ROBOT_VM_NOT:
-			self->A = !self->A;
-			++self->PC;
+			self->R[A] = ~self->R[B];
 			break;
 
 		/* Arithmetic operations: */
 		case ROBOT_VM_INCR:   /* ++self->A                                 */
-			++self->A;
-			++self->PC;
+			++self->R[A];
 			break;
 
 		case ROBOT_VM_DECR:   /* --self->A                                 */
-			--self->A;
-			++self->PC;
+			--self->R[A];
 			break;
 
 		case ROBOT_VM_ADD:
 			/* TODO: overflow! */
-			self->A += self->B;
-			++self->PC;
+			self->R[A] = self->R[B] + self->R[C];
 			break;
 
 		case ROBOT_VM_SUB:
 			/* TODO: overflow! */
-			self->A -= self->B;
-			++self->PC;
+			self->R[A] = self->R[B] + self->R[C];
 			break;
 
 		case ROBOT_VM_MUL:
 			/* TODO: overflow! */
-			self->A *= self->B;
-			++self->PC;
+			self->R[A] = self->R[B] * self->R[C];
 			break;
 
 		case ROBOT_VM_DIV:    /* PUSH(POP() / POP())                       */
-			if (!self->B) {
+			if (!self->R[C]) {
 				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Division by zero");
 				return FALSE;
 			}
-			self->A /= self->B;
-			++self->PC;
-			break;
-
-		case ROBOT_VM_MOD:    /* PUSH(POP() % POP())                       */
-			if (!self->B) {
-				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Division by zero");
-				return FALSE;
-			}
-			self->A %= self->B;
-			++self->PC;
-			break;
-
-		/* Stack extendent operations: */
-		case ROBOT_VM_RESERVE:/* T += A                                    */
-			if (self->T < self->A) {
-				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK, "Stack overflow");
-				return FALSE;
-			}
-			self->T -= self->A;
-			++self->PC;
-			break;
-
-		case ROBOT_VM_RELEASE:/* T -= A                                    */
-			if (self->T + self->A >= self->stack_end) {
-				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK, "Stack overflow");
-				return FALSE;
-			}
-			self->T += self->A;
-			++self->PC;
+			self->R[A] = self->R[B] / self->R[C];
+			self->R[31] = self->R[B] % self->R[C];
 			break;
 
 		/* I/O */
 		case ROBOT_VM_OUT:    /* Out symbol from stack to console.         */
 			/* TODO: unicode! */
-			putchar(self->A);
-			++self->PC;
+			/* TODO: channels? */
+			putchar(self->R[A]);
 			break;
 
 		case ROBOT_VM_IN:     /* Input symbol from console to stack.       */
 			/* TODO: unicode! */
-			self->A = getchar();
-			++self->PC;
+			/* TODO: channels? */
+			self->R[A] = getchar();
 			break;
 
 		default:
 			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_INVALID_INSTRUCTION,
-					"Invalid instruction %02x at %x", self->memory->data[self->PC], (unsigned)self->PC);
+					"Invalid instruction %02x at %x", self->memory->data[self->R[0]], (unsigned)self->R[0]);
 			return FALSE;
 	}
 	return TRUE;
@@ -538,8 +379,8 @@ gboolean robot_vm_next(RobotVM *self, gboolean *stop, GError **error)
 	self->priv->stop = FALSE;
 
 	while (!self->priv->stop) {
-		if (self->PC < self->memory->len &&
-				self->memory->data[self->PC] == ROBOT_VM_SYS) {
+		if (self->R[0] < self->memory->len &&
+				self->memory->data[self->R[0]] == ROBOT_VM_EXT) {
 			break;
 		}
 
@@ -554,147 +395,11 @@ gboolean robot_vm_next(RobotVM *self, gboolean *stop, GError **error)
 	return TRUE;
 }
 
-gboolean robot_vm_stack_push(RobotVM *self, gconstpointer data, gsize len, GError **error)
-{
-	if (self->T < len) {
-		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK, "Stack overflow");
-		return FALSE;
-	}
-
-	self->T -= len;
-	memcpy(self->memory->data + self->T, data, len);
-
-	return TRUE;
-}
-
-gboolean robot_vm_stack_push_word(RobotVM *self, RobotVMWord w, GError **error)
-{
-	w = g_htonl(w);
-	return robot_vm_stack_push(self, &w, sizeof(RobotVMWord), error);
-}
-
-gboolean robot_vm_stack_pop(RobotVM *self, gpointer data, gsize len, GError **error)
-{
-	if (self->T + len >= self->memory->len) { /* TODO: stack size */
-		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK,
-				"Trying to pop %u bytes out of memory", (unsigned)len);
-		return FALSE;
-	}
-
-	memcpy(data, self->memory->data + self->T, len);
-	self->T += len;
-
-	return TRUE;
-}
-
-gboolean robot_vm_stack_pop_word(RobotVM *self, RobotVMWord *w, GError **error)
-{
-	gboolean res = robot_vm_stack_pop(self, w, sizeof(RobotVMWord), error);
-	if (res)
-		*w = g_ntohl(*w);
-	return res;
-}
-
-gboolean robot_vm_stack_nth(RobotVM *self, guint idx, gpointer data, gsize len, GError **error)
-{
-	if (self->T + len + idx >= self->memory->len) { /* TODO: stack size */
-		g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_STACK,
-				"Trying to pop %u bytes causes execution fault", (unsigned)len);
-		return FALSE;
-	}
-
-	memcpy(data, self->memory->data + (self->T + idx), len);
-
-	return TRUE;
-}
-
-#define UNFUNC(nm, CODE) \
-	static gboolean rvm_##nm(RobotVM *self, gpointer userdata, GError **error) \
-	{ \
-		RobotVMWord a, r; \
-		if (!robot_vm_stack_pop(self, &a, sizeof(RobotVMWord), error)) { \
-			return FALSE; /* Error was set in pop */ \
-		} \
-		CODE; \
-		if (!robot_vm_stack_push(self, &r, sizeof(RobotVMWord), error)) { \
-			return FALSE; \
-		} \
-		return TRUE; \
-	}
-
-#define BINFUNC(nm, CODE) \
-	static gboolean rvm_##nm(RobotVM *self, gpointer userdata, GError **error) \
-	{ \
-		RobotVMWord a, b, r; \
-		if (!robot_vm_stack_pop(self, &a, sizeof(RobotVMWord), error)) { \
-			return FALSE; /* Error was set in pop */ \
-		} \
-		if (!robot_vm_stack_pop(self, &b, sizeof(RobotVMWord), error)) { \
-			return FALSE; /* Error was set in pop */ \
-		} \
-		CODE; \
-		if (!robot_vm_stack_push(self, &r, sizeof(RobotVMWord), error)) { \
-			return FALSE; \
-		} \
-		return TRUE; \
-	}
-
-#define ERR(e, ...) \
-	do { \
-		g_set_error(error, ROBOT_ERROR, e, __VA_ARGS__); \
-		return FALSE; \
-	} while (0)
-
-/* Arithmetic: */
-BINFUNC(add, r = a + b;)
-BINFUNC(sub, r = a - b;)
-BINFUNC(mul, r = a * b;)
-BINFUNC(div, if (b == 0) ERR(ROBOT_ERROR_DIVISION_BY_ZERO, "Division by zero"); r = a / b;)
-BINFUNC(mod, if (b == 0) ERR(ROBOT_ERROR_DIVISION_BY_ZERO, "Division by zero"); r = a % b;)
-
-/* Logical: */
-UNFUNC(not, r = !a;)
-BINFUNC(and, r = a && b;)
-BINFUNC(or, r = a || b;)
-
-/* Compare: */
-BINFUNC(eq, r = (a == b);)
-BINFUNC(less, r = (a < b);)
-BINFUNC(leq, r = (a <= b);)
-
-static struct std_func {
-	const char *name;
-	RobotVMFunc func;
-	gpointer userdata;
-} std_funcs[] = {
-#define F(nm) \
-	{ "$" #nm "$", rvm_##nm, NULL }
-
-	F(add), F(sub), F(div), F(mul), F(mod),
-
-	F(not), F(and), F(or),
-
-	F(eq), F(less), F(leq),
-
-#undef F
-	{ NULL, NULL, NULL }
-};
-
-void robot_vm_add_standard_functions(RobotVM *self)
-{
-	guint i;
-
-	for (i = 0; std_funcs[i].name; i++) {
-		robot_vm_add_function(self, std_funcs[i].name, std_funcs[i].func, std_funcs[i].userdata, NULL);
-	}
-}
-
-void robot_vm_allocate_memory(RobotVM *self, gsize len, gsize stack_size)
+void robot_vm_allocate_memory(RobotVM *self, gsize len)
 {
 	if (len > self->memory->len) {
 		g_byte_array_set_size(self->memory, len);
 	}
-	self->stack_end = stack_size;
 }
 
 gboolean robot_vm_load(RobotVM *self, RobotObjFile *obj, GError **error)
@@ -724,34 +429,34 @@ gboolean robot_vm_load(RobotVM *self, RobotObjFile *obj, GError **error)
 	while (sz2 > 1 && sz2 < obj->data->len)
 		sz2 <<= 1;
 
-	s = sz + sz2 + 0x1000 + 0x10000;
+	s = sz + sz2 + obj->SS + 0x10000;
 	if (self->memory->len < s) {
-		robot_vm_allocate_memory(self, s, 0x1000);
+		robot_vm_allocate_memory(self, s); 
 	}
 
-	self->PC = self->stack_end;
-	self->T = self->stack_end;
+	self->R[0] = obj->SS;
+	self->R[1] = obj->SS;
 
 	/* Load text and data segments: */
-	memcpy(self->memory->data + self->stack_end, obj->text->data, obj->text->len);
-	memcpy(self->memory->data + self->stack_end + sz, obj->data->data, obj->data->len);
+	memcpy(self->memory->data + self->R[1], obj->text->data, obj->text->len);
+	memcpy(self->memory->data + self->R[1] + sz, obj->data->data, obj->data->len);
 
 	/* Process relocations: */
 	for (i = 0; i < obj->relocation->len; i++) {
 		r = g_array_index(obj->relocation, RobotVMWord, i);
 
 		if (r < obj->text->len) {
-			r += self->stack_end;
+			r += self->R[1];
 			GET(w, r);
-			w += self->stack_end;
+			w += self->R[1];
 			PUT(r, w);
 		} else {
-			r += self->stack_end;
+			r += self->R[1];
 			r += sz;
 			r -= obj->text->len;
 
 			GET(w, r);
-			w += self->stack_end + sz;
+			w += self->R[1] + sz;
 			PUT(r, w);
 		}
 	}
@@ -759,7 +464,7 @@ gboolean robot_vm_load(RobotVM *self, RobotObjFile *obj, GError **error)
 	for (i = 0; i < obj->depends->len; i++) {
 		sym = &g_array_index(obj->depends, RobotObjFileSymbol, i);
 
-		PUT(sym->addr + self->stack_end, robot_vm_get_function(self, sym->name + 1));
+		PUT(sym->addr + self->R[1], robot_vm_get_function(self, sym->name + 1));
 	}
 
 	return TRUE;

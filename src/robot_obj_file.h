@@ -28,7 +28,7 @@ struct _RobotObjFile {
 
 	/* Header: */
 	RobotVMWord flags;
-	RobotVMWord reserved0;
+	RobotVMWord SS;         /* Stack size */
 	RobotVMWord reserved1;
 	RobotVMWord reserved2;
 	RobotVMWord reserved3;
@@ -76,7 +76,7 @@ gboolean robot_obj_file_from_byte_array(RobotObjFile *self, GByteArray *from, GE
 
 gboolean robot_obj_file_dump(RobotObjFile *self, FILE *f, gboolean disasm, GError **error);
 
-const gchar* robot_instruction_to_string(const guint8 instr, gchar *buf, gsize len);
+const gchar* robot_instruction_to_string(gconstpointer code, gchar *buf, gsize len);
 
 G_END_DECLS
 
