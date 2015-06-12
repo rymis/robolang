@@ -23,7 +23,7 @@ typedef enum _RobotErrorCodes {
 
 typedef enum _RobotVMCommand {
 	ROBOT_VM_NOP,    /* No operation                              */
-	ROBOT_VM_LOAD,   /* Load B C into A                           */
+	ROBOT_VM_LOAD,   /* R0 +=8; A = *(R0 - 4)                     */
 	ROBOT_VM_EXT,    /* Call extension instruction by number      */
 	ROBOT_VM_W8,     /* Write byte to address. (*A = B)           */
 	ROBOT_VM_R8,     /* Read byte from address. (B = *A)          */
@@ -34,15 +34,16 @@ typedef enum _RobotVMCommand {
 	ROBOT_VM_SWAP,   /* Swap A and B                              */
 	ROBOT_VM_MOVE,   /* A = B                                     */
 	ROBOT_VM_MOVEIF, /* A = B if C != 0                           */
+	ROBOT_VM_MOVEIFZ,/* A = B if C == 0                           */
 	ROBOT_VM_STOP,   /* Stop execution. A is return code.         */
 	/* Binary operations: */
 	ROBOT_VM_LSHIFT, /* A = B << C                                */
 	ROBOT_VM_RSHIFT, /* PUSH(POP() >> POP())                      */
 	ROBOT_VM_SSHIFT, /* PUSH((signed int)POP() >> POP())          */
-	ROBOT_VM_BAND,   /* PUSH(POP() & POP())                       */
-	ROBOT_VM_BOR,    /* PUSH(POP() | POP())                       */
-	ROBOT_VM_BXOR,   /* PUSH(POP() ^ POP())                       */
-	ROBOT_VM_BNEG,   /* PUSH(~POP())                              */
+	ROBOT_VM_AND,   /* PUSH(POP() & POP())                       */
+	ROBOT_VM_OR,    /* PUSH(POP() | POP())                       */
+	ROBOT_VM_XOR,   /* PUSH(POP() ^ POP())                       */
+	ROBOT_VM_NEG,   /* PUSH(~POP())                              */
 	/* Arithmetic operations: */
 	ROBOT_VM_INCR,   /* ++self->A                                 */
 	ROBOT_VM_DECR,   /* --self->A                                 */

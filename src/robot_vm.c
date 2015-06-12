@@ -188,7 +188,9 @@ static inline gboolean exec(RobotVM *self, GError **error)
 			break;
 
 		case ROBOT_VM_LOAD:
-			self->R[A] = (self->memory->data[self->R[0] - 2] << 16) | self->memory->data[self->R[0] - 1];
+			GET(a, self->R[0]);
+			self->R[0] += 4;
+			self->R[A] = a;
 			break;
 
 		case ROBOT_VM_EXT:   /* Call function by number in symtable       */
@@ -214,11 +216,11 @@ static inline gboolean exec(RobotVM *self, GError **error)
 			break;
 
 		case ROBOT_VM_R8:  /* Read byte from address. (B = *A)          */
-			if (self->R[A] >= self->memory->len) {
+			if (self->R[B] >= self->memory->len) {
 				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Write out of memory");
 				return FALSE;
 			}
-			self->R[B] = self->memory->data[self->R[A]];
+			self->R[A] = self->memory->data[self->R[B]];
 			break;
 
 		case ROBOT_VM_W16:    /* Write uint16 to address. (*A = B)         */
@@ -231,11 +233,11 @@ static inline gboolean exec(RobotVM *self, GError **error)
 			break;
 
 		case ROBOT_VM_R16:    /* Read uint16 from address. (B = *A)        */
-			if (self->R[A] + 1 >= self->memory->len) {
+			if (self->R[B] + 1 >= self->memory->len) {
 				g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_EXECUTION_FAULT, "Write out of memory");
 				return FALSE;
 			}
-			self->R[B] = (self->memory->data[self->R[A]] << 8) + self->memory->data[self->R[A] + 1];
+			self->R[A] = (self->memory->data[self->R[B]] << 8) + self->memory->data[self->R[B] + 1];
 			break;
 
 		case ROBOT_VM_W32:
@@ -261,6 +263,11 @@ static inline gboolean exec(RobotVM *self, GError **error)
 				self->R[A] = self->R[B];
 			break;
 
+		case ROBOT_VM_MOVEIFZ:
+			if (self->R[C] == 0)
+				self->R[A] = self->R[B];
+			break;
+
 		case ROBOT_VM_STOP:
 			self->priv->stop = TRUE;
 			break;
@@ -278,19 +285,19 @@ static inline gboolean exec(RobotVM *self, GError **error)
 			self->R[A] = ((gint32)self->R[B]) >> (self->R[C] & 31);
 			break;
 
-		case ROBOT_VM_BAND:
+		case ROBOT_VM_AND:
 			self->R[A] = self->R[B] & self->R[C];
 			break;
 
-		case ROBOT_VM_BOR:
+		case ROBOT_VM_OR:
 			self->R[A] = self->R[B] | self->R[C];
 			break;
 
-		case ROBOT_VM_BXOR:
+		case ROBOT_VM_XOR:
 			self->R[A] = self->R[B] ^ self->R[C];
 			break;
 
-		case ROBOT_VM_BNEG:
+		case ROBOT_VM_NEG:
 			self->R[A] = ~self->R[B];
 			break;
 

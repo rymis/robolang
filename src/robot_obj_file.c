@@ -342,26 +342,27 @@ static struct _iinfo {
 } instructions[] = {
 	/* Main: */
 	{ "nop", ROBOT_VM_NOP, 0 },
-	{ "load", ROBOT_VM_LOAD, 3 },
+	{ "load", ROBOT_VM_LOAD, 1 },
 	{ "ext", ROBOT_VM_EXT, 1 },
 	{ "write8", ROBOT_VM_W8, 2 },
 	{ "read8", ROBOT_VM_R8, 2 },
 	{ "write16", ROBOT_VM_W16, 2 },
 	{ "read16", ROBOT_VM_R16, 2 },
-	{ "write32", ROBOT_VM_W16, 2 },
-	{ "read32", ROBOT_VM_R16, 2 },
+	{ "write32", ROBOT_VM_W32, 2 },
+	{ "read32", ROBOT_VM_R32, 2 },
 	{ "stop", ROBOT_VM_STOP, 1 },
 	{ "move", ROBOT_VM_MOVE, 2 },
 	{ "moveif", ROBOT_VM_MOVEIF, 3 },
+	{ "moveifz", ROBOT_VM_MOVEIFZ, 3 },
 	{ "swap", ROBOT_VM_SWAP, 2 },
 	/* Binary operations: */
 	{ "lshift", ROBOT_VM_LSHIFT, 3 },
 	{ "rshift", ROBOT_VM_RSHIFT, 3 },
 	{ "sshift", ROBOT_VM_SSHIFT, 3 },
-	{ "and", ROBOT_VM_BAND, 3 },
-	{ "or", ROBOT_VM_BOR, 3 },
-	{ "xor", ROBOT_VM_BXOR, 3 },
-	{ "neg", ROBOT_VM_BNEG, 2 },
+	{ "and", ROBOT_VM_AND, 3 },
+	{ "or", ROBOT_VM_OR, 3 },
+	{ "xor", ROBOT_VM_XOR, 3 },
+	{ "neg", ROBOT_VM_NEG, 2 },
 	/* Arithmetic operations: */
 	{ "incr", ROBOT_VM_INCR, 1 },
 	{ "decr", ROBOT_VM_DECR, 1 },
@@ -677,12 +678,12 @@ gboolean robot_obj_file_compile(RobotObjFile *self, const gchar *prog, GError **
 					RobotObjFileSymbol *s = get_sym(self, p->name);
 					if (s) {
 						p->addr = s->addr;
-						robot_obj_file_add_relocation(self, p->loc + 1);
+						robot_obj_file_add_relocation(self, p->loc);
 					} else {
-						add_depend(self, p->name, p->loc + 1);
+						add_depend(self, p->name, p->loc);
 					}
 				} else if (p->sys[0]) {
-					robot_obj_file_add_syscall(self, p->sys, p->loc + 1);
+					robot_obj_file_add_syscall(self, p->sys, p->loc);
 					p->addr = 0;
 				} else {
 					/* Here are constant so we don't need to add relocation: */
@@ -1065,8 +1066,11 @@ gboolean robot_obj_file_dump(RobotObjFile *self, FILE *f, gboolean disasm, GErro
 {
 	guint i, j;
 	RobotObjFileSymbol *s;
+	char buf[256];
+	gboolean load = FALSE;
 
 	fprintf(f, "FLAGS: %08x\n", (unsigned)self->flags);
+	fprintf(f, "STACK SIZE: %08x\n", (unsigned)self->SS);
 	fprintf(f, "TEXT SIZE: %u\n", (unsigned)self->text->len);
 	fprintf(f, "DATA SIZE: %u\n", (unsigned)self->data->len);
 	fprintf(f, "SYMBOLS COUNT: %u\n", (unsigned)self->sym->len);
@@ -1102,14 +1106,18 @@ gboolean robot_obj_file_dump(RobotObjFile *self, FILE *f, gboolean disasm, GErro
 	if (self->text->len) {
 		fprintf(f, "TEXT:\n");
 		if (!disasm) {
-			for (i = 0; i < self->text->len; i++) {
-				if (i % 16 == 0)
+			for (i = 0; i < self->text->len; i += 4) {
+				if (i % 8 == 0)
 					fprintf(f, "\n\t");
-				fprintf(f, "%02x ", self->text->data[i]);
+				fprintf(f, "%02x%02x%02x%02x ",
+						self->text->data[i],
+						self->text->data[i + 1],
+						self->text->data[i + 2],
+						self->text->data[i + 3]);
 			}
 			fprintf(f, "\n");
 		} else {
-			for (i = 0; i < self->text->len; ) {
+			for (i = 0; i < self->text->len; i += 4) {
 				for (j = 0; j < self->sym->len; j++) {
 					if (g_array_index(self->sym, RobotObjFileSymbol, j).addr == i) {
 						fprintf(f, ":%s\n", g_array_index(self->sym, RobotObjFileSymbol, j).name);
@@ -1117,23 +1125,20 @@ gboolean robot_obj_file_dump(RobotObjFile *self, FILE *f, gboolean disasm, GErro
 					}
 				}
 
-				if (self->text->data[i] >= ROBOT_VM_COMMAND_COUNT) {
-					fprintf(f, "{");
-					while (i < self->text->len && self->text->data[i] >= ROBOT_VM_COMMAND_COUNT)
-						fprintf(f, " %02x", self->text->data[i++]);
-					fprintf(f, " }\n");
-				} else {
-					for (j = 0; instructions[j].name; j++)
-						if (instructions[j].code == self->text->data[i])
-							break;
-					if (instructions[j].name) {
-						fprintf(f, "%s\n", instructions[j].name);
-					} else {
-						fprintf(f, "{ %02x }\n", self->text->data[i]);
-					}
+				fprintf(f, "[%08x] ", i);
 
-					i++;
+				if (load) {
+					fprintf(f, "%02x%02x%02x%02x\n",
+							self->text->data[i],
+							self->text->data[i + 1],
+							self->text->data[i + 2],
+							self->text->data[i + 3]);
+					load = FALSE;
+				} else {
+					fprintf(f, "%s\n", robot_instruction_to_string(self->text->data + i, buf, sizeof(buf)));
+					load = (self->text->data[i] == ROBOT_VM_LOAD);
 				}
+
 			}
 		}
 	}
@@ -1221,6 +1226,9 @@ gboolean robot_obj_file_merge(RobotObjFile *self, RobotObjFile *other, GError **
 			robot_obj_file_add_reference(self, s->name, s->addr + offset);
 		}
 	}
+
+	if (other->SS > self->SS)
+		self->SS = other->SS;
 
 	return TRUE;
 }

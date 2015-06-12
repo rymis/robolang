@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
 				if (j && j % 8 == 0)
 					printf("\n");
 			}
+			printf("\n# %s\n", instr);
 			if (vm->R[1] + 32 < vm->memory->len) {
 				RobotVMWord T = vm->R[1];
 				printf("$ ");
