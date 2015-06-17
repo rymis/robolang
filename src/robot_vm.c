@@ -310,6 +310,14 @@ static inline gboolean exec(RobotVM *self, GError **error)
 			--self->R[A];
 			break;
 
+		case ROBOT_VM_INCR4:   /* ++self->A                                 */
+			self->R[A] += 4;
+			break;
+
+		case ROBOT_VM_DECR4:   /* --self->A                                 */
+			self->R[A] -= 4;
+			break;
+
 		case ROBOT_VM_ADD:
 			/* TODO: overflow! */
 			self->R[A] = self->R[B] + self->R[C];

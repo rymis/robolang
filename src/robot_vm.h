@@ -47,6 +47,8 @@ typedef enum _RobotVMCommand {
 	/* Arithmetic operations: */
 	ROBOT_VM_INCR,   /* ++self->A                                 */
 	ROBOT_VM_DECR,   /* --self->A                                 */
+	ROBOT_VM_INCR4,  /* self->A += 4                              */
+	ROBOT_VM_DECR4,  /* self->A -= 4                              */
 	ROBOT_VM_ADD,    /* PUSH(POP() + POP())                       */
 	ROBOT_VM_SUB,    /* PUSH(POP() - POP())                       */
 	ROBOT_VM_MUL,    /* PUSH(POP() * POP())                       */

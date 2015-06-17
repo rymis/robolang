@@ -366,6 +366,8 @@ static struct _iinfo {
 	/* Arithmetic operations: */
 	{ "incr", ROBOT_VM_INCR, 1 },
 	{ "decr", ROBOT_VM_DECR, 1 },
+	{ "incr4", ROBOT_VM_INCR4, 1 },
+	{ "decr4", ROBOT_VM_DECR4, 1 },
 	{ "add", ROBOT_VM_ADD, 3 },
 	{ "sub", ROBOT_VM_SUB, 3 },
 	{ "mul", ROBOT_VM_MUL, 3 },

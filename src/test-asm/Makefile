@@ -1,29 +1,31 @@
 AS = ../robot_as
 LD = ../robot_ld
 VM = ../robot_vm
+M4 = m4
 
-.PHONY: hello_world_test hanoy_test test clean
+TESTS = hello_world hanoy
 
-test: hello_world_test hanoy_test
+# Automatically generated...      ##
+####################################
 
-hello_world_test: hello_world
-	$(VM) ./hello_world
+TARGETS = $(foreach t,$(TESTS),$(t).test)
+EXES = $(patsubst %,%.exe,$(TESTS))
 
-hello_world: hello_world.o
-	$(LD) -o hello_world hello_world.o
+test: $(TARGETS)
 
-hello_world.o: hello_world.s
-	$(AS) hello_world.s
+%.test: %.exe
+	$(VM) $<
+	touch $@
 
-hanoy_test: hanoy
-	$(VM) ./hanoy
+%.exe: %.o
+	$(LD) -o $@ $<
 
-hanoy: hanoy.o
-	$(LD) -o hanoy hanoy.o
+%.o: %.s
+	$(AS) $<
 
-hanoy.o: hanoy.s
-	$(AS) hanoy.s
+%.s: %.s4
+	$(M4) $< > $@
 
-clean:
-	rm *.o hello_world hanoy
+#clean:
+#	rm -f *.o $(EXES) $(TARGETS)
 
