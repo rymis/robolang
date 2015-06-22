@@ -387,3 +387,34 @@ void x_sdl_sprite_render(XSDLSprite *self, SDL_Renderer *renderer)
 	SDL_RenderCopyEx(renderer, self->priv->texture, NULL, &dst, self->priv->rotation, NULL, self->priv->flip);
 }
 
+#if 0
+/* File format is simple. There are following data types:
+ * U32 - unsigned int 32 in bigendian form
+ * STR - 0 - terminated string
+ * DATA - binary data prefixed by size of type U32
+ *
+ * File will be saved as:
+ * | TYPE | NAME    | DESCRIPTION                                            |
+ * | STR  | format  | Format magic string (#!robot_run)                      |
+ * | U32  | version | Format version. Now it is 1                            |
+ * | U32  | mcnt    | Modes count.                                           |
+ * | U32  | defmode | Default mode index                                     |
+ * Each group looks like:
+ * | STR  | name    | Mode name                                              |
+ * | U32  | frames  | Frames count                                           |
+ * After this record frames placed in form:
+ * | U32  | width   | Width of current frame                                 |
+ * | U32  | height  | Height of current frame                                |
+ * | DATA | data    | Pixels data                                            |
+ */
+GByteArray* x_sdl_sprite_to_byte_array(XSDLSprite *self, GError **error)
+{
+
+}
+
+gboolean x_sdl_sprite_from_byte_array(XSDLSprite *self, GByteArray *data, GError **error)
+{
+
+}
+#endif
+

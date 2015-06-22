@@ -2,6 +2,7 @@
 #define _ROBOT_LABIRINTH_H_ 1
 
 #include <glib-object.h>
+#include "x_sdl_sprite.h"
 
 G_BEGIN_DECLS
 
@@ -15,6 +16,9 @@ G_BEGIN_DECLS
 
 /* get_type prototype: */
 GType robot_labirinth_get_type(void);
+
+/** Each sell could be free to go or the wall. */
+typedef guint RobotLabirinthCell;
 
 /* Structures definitions: */
 typedef struct _RobotLabirinth RobotLabirinth;
@@ -32,6 +36,16 @@ struct _RobotLabirinthClass {
 };
 
 RobotLabirinth* robot_labirinth_new(void);
+RobotLabirinth* robot_labirinth_new_full(guint width, guint height, guint wall_start);
+void robot_labirinth_set_size(RobotLabirinth *self, guint width, guint height);
+void robot_labirinth_set_wall_start(RobotLabirinth *self, guint wall_start);
+RobotLabirinthCell robot_labirinth_get_cell(RobotLabirinth *self, guint x, guint y);
+gboolean robot_labirinth_is_wall(RobotLabirinth *self, RobotLabirinthCell cell);
+gboolean robot_labirinth_can_walk(RobotLabirinth *self, guint x, guint y);
+void robot_labirinth_set_cell(RobotLabirinth *self, guint x, guint y, RobotLabirinthCell cell);
+gboolean robot_labirinth_load(RobotLabirinth *self, const char *filename, GError **error);
+void robot_labirinth_set_sprite_for_cell(RobotLabirinth *self, gint cell, XSDLSprite *sprite);
+void robot_labirinth_render(RobotLabirinth *self, SDL_Renderer *renderer);
 
 G_END_DECLS
 
