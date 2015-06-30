@@ -24,10 +24,12 @@ struct _RobotIDrawableInterface {
 
 	gboolean (*get_rect)(RobotIDrawable *self, SDL_Rect *rect);
 	void (*render)(RobotIDrawable *self, SDL_Renderer *renderer);
+	gint64 (*action)(RobotIDrawable *self, gint64 curtime, void *userdata);
 };
 
 gboolean robot_idrawable_get_rect(RobotIDrawable *self, SDL_Rect *rect);
 void robot_idrawable_render(RobotIDrawable *self, SDL_Renderer *renderer);
+gint64 robot_idrawable_action(RobotIDrawable *self, gint64 curtime, void *userdata);
 
 G_END_DECLS
 

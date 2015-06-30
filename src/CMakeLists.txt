@@ -1,7 +1,7 @@
 
 ADD_LIBRARY(robotvm robot_vm.c robot_obj_file.c)
 
-ADD_EXECUTABLE(robot_run main.c x_sdl_sprite.c sdl_source.c robot_labirinth.c)
+ADD_EXECUTABLE(robot_run main.c x_sdl_sprite.c sdl_source.c robot_labirinth.c robot_idrawable.c robot_iactor.c)
 TARGET_LINK_LIBRARIES(robot_run ${GLIB_LIBRARIES} ${SDL_LIBRARIES} robotvm)
 
 ADD_EXECUTABLE(robot_as robot_as.c)
