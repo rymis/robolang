@@ -17,12 +17,12 @@
 G_BEGIN_DECLS
 
 /* Type conversion macroses: */
-#define X_TYPE_SDL_SPRITE                   (robot_sprite_get_type())
-#define ROBOT_SPRITE(obj)                   (G_TYPE_CHECK_INSTANCE_CAST((obj),  X_TYPE_SDL_SPRITE, RobotSprite))
-#define X_IS_SDL_SPRITE(obj)                (G_TYPE_CHECK_INSTANCE_TYPE ((obj), X_TYPE_SDL_SPRITE))
-#define ROBOT_SPRITE_CLASS(klass)           (G_TYPE_CHECK_CLASS_CAST ((klass),  X_TYPE_SDL_SPRITE, RobotSpriteClass))
-#define X_IS_SDL_SPRITE_CLASS(klass)        (G_TYPE_CHECK_CLASS_TYPE ((klass),  X_TYPE_SDL_SPRITE))
-#define ROBOT_SPRITE_GET_CLASS(obj)         (G_TYPE_INSTANCE_GET_CLASS ((obj),  X_TYPE_SDL_SPRITE, RobotSpriteClass))
+#define ROBOT_TYPE_SPRITE                   (robot_sprite_get_type())
+#define ROBOT_SPRITE(obj)                   (G_TYPE_CHECK_INSTANCE_CAST((obj),  ROBOT_TYPE_SPRITE, RobotSprite))
+#define ROBOT_IS_SPRITE(obj)                (G_TYPE_CHECK_INSTANCE_TYPE ((obj), ROBOT_TYPE_SPRITE))
+#define ROBOT_SPRITE_CLASS(klass)           (G_TYPE_CHECK_CLASS_CAST ((klass),  ROBOT_TYPE_SPRITE, RobotSpriteClass))
+#define ROBOT_IS_SPRITE_CLASS(klass)        (G_TYPE_CHECK_CLASS_TYPE ((klass),  ROBOT_TYPE_SPRITE))
+#define ROBOT_SPRITE_GET_CLASS(obj)         (G_TYPE_INSTANCE_GET_CLASS ((obj),  ROBOT_TYPE_SPRITE, RobotSpriteClass))
 
 /* get_type prototype: */
 GType robot_sprite_get_type(void);
@@ -31,6 +31,8 @@ GType robot_sprite_get_type(void);
 typedef struct _RobotSprite RobotSprite;
 typedef struct _RobotSpriteClass RobotSpriteClass;
 typedef struct _RobotSpritePrivate RobotSpritePrivate;
+
+typedef gint64 (*RobotSpriteAction)(RobotSprite *self, gint64 now, gpointer userptr);
 
 struct _RobotSprite {
 	GObject parent_instance;
@@ -165,7 +167,11 @@ void robot_sprite_scale_x(RobotSprite *self, double scale);
 void robot_sprite_scale_y(RobotSprite *self, double scale);
 
 void robot_sprite_render(RobotSprite *self, SDL_Renderer *renderer);
+gboolean robot_sprite_get_rect(RobotSprite *self, SDL_Rect *rect);
+gint64 robot_sprite_action(RobotSprite *self, gint64 now, void *userdata);
+void robot_sprite_set_action(RobotSprite *self, RobotSpriteAction action);
 
 G_END_DECLS
 
 #endif /* ROBOT_SPRITE_H */
+

@@ -4,11 +4,13 @@
 #include <glib-object.h>
 #include "sdl_source.h"
 #include "robot_sprite.h"
+#include "robot_scene.h"
 #include "robot.h"
 
 const unsigned WIDTH = 800;
 const unsigned HEIGHT = 600;
 
+static RobotScene *scene = NULL;
 static RobotSprite *sprite = NULL;
 static RobotSprite *man = NULL;
 static RobotSprite *cman = NULL;
@@ -87,12 +89,12 @@ static gboolean event_cb(SDL_Event *event, gpointer userdata)
 	return TRUE;
 }
 
-static gboolean timeout_cb(gpointer ptr)
+static gint64 sprite_action_cb(RobotSprite *self, gint64 now, gpointer userptr)
 {
-	(void)ptr;
 	guint w, h;
 	gint x, y;
-	gint dx, dy;
+
+	(void)userptr;
 
 	w = robot_sprite_get_width(sprite);
 	h = robot_sprite_get_height(sprite);
@@ -139,7 +141,13 @@ static gboolean timeout_cb(gpointer ptr)
 		}
 	}
 	robot_sprite_set_position(sprite, x, y);
+	robot_sprite_rotate(sprite, 1);
 
+	return now + 30000;
+}
+
+static gint64 man_action_cb(RobotSprite *self, gint64 now, gpointer userptr)
+{
 	if (man_state == 0) { /* Walk right */
 		man_frame++;
 		robot_sprite_move(man, 3, 0);
@@ -173,6 +181,15 @@ static gboolean timeout_cb(gpointer ptr)
 	}
 	robot_sprite_set_frame(man, man_frame);
 
+	return now + 30000;
+}
+
+
+static gint64 cman_action_cb(RobotSprite *self, gint64 now, gpointer userptr)
+{
+	gint x, y;
+	gint dx, dy;
+
 	if (cman_key) {
 		robot_sprite_get_position(cman, &x, &y);
 
@@ -197,8 +214,11 @@ static gboolean timeout_cb(gpointer ptr)
 		robot_sprite_set_frame(cman, cman_frame);
 	}
 
-	robot_sprite_rotate(sprite, 1);
+	return now + 30000;
+}
 
+static gboolean timeout_cb(gpointer ptr)
+{
 	SDL_RenderClear(renderer);
 
 	/* TODO: render :) */
@@ -208,9 +228,7 @@ static gboolean timeout_cb(gpointer ptr)
 	SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0xff);
 	*/
 
-	robot_sprite_render(sprite, renderer);
-	robot_sprite_render(man, renderer);
-	robot_sprite_render(cman, renderer);
+	robot_scene_render(scene, renderer);
 
 	SDL_RenderPresent(renderer);
 
@@ -252,6 +270,10 @@ int main(int argc, char *argv[])
 
 	SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0xff);
 
+	loop = g_main_loop_new(NULL, FALSE);
+	x_sdl_add_source(loop, event_cb, NULL, NULL);
+	scene = robot_scene_new_full(loop);
+
 	sprite = robot_sprite_new();
 	man = robot_sprite_new();
 	cman = robot_sprite_new();
@@ -261,12 +283,23 @@ int main(int argc, char *argv[])
 	robot_sprite_set_position(man, 25, HEIGHT / 2);
 	robot_sprite_set_position(cman, WIDTH / 2, HEIGHT / 2);
 
+	robot_sprite_set_action(sprite, sprite_action_cb);
+	robot_sprite_set_action(man, man_action_cb);
+	robot_sprite_set_action(cman, cman_action_cb);
+
+	robot_scene_add_drawable(scene, ROBOT_IDRAWABLE(sprite), 0, NULL, NULL);
+	robot_scene_add_drawable(scene, ROBOT_IDRAWABLE(man), 0, NULL, NULL);
+	robot_scene_add_drawable(scene, ROBOT_IDRAWABLE(cman), 0, NULL, NULL);
+
 	/* Creating main loop: */
-	loop = g_main_loop_new(NULL, FALSE);
-	x_sdl_add_source(loop, event_cb, NULL, NULL);
 	g_timeout_add(30, timeout_cb, NULL);
 
 	g_main_loop_run(loop);
+
+	g_clear_object(&scene);
+	g_clear_object(&man);
+	g_clear_object(&cman);
+	g_clear_object(&sprite);
 
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);

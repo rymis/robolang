@@ -63,7 +63,7 @@ void robot_scene_add_drawable(RobotScene *self, RobotIDrawable *unit, guint64 ac
 	g_return_if_fail(self != NULL && unit != NULL);
 
 	u= g_malloc(sizeof(struct unit));
-	u->drawable = unit;
+	u->drawable = g_object_ref(unit);
 	u->next_action = action;
 	u->userdata = userdata;
 	u->free_ud = free_userdata;
@@ -113,7 +113,7 @@ static gboolean timeout_cb(gpointer ptr)
 
 	for (p = self->priv->units; p; p = g_list_next(p)) {
 		u = p->data;
-		if (u->next_action >= 0 && u->next_action > now) {
+		if (u->next_action >= 0 && now > u->next_action) {
 			u->next_action = robot_idrawable_action(u->drawable, now, u->userdata);
 		}
 	}
@@ -127,7 +127,7 @@ void robot_scene_register(RobotScene *self, GMainLoop *loop)
 
 	g_return_if_fail(ctx != NULL);
 
-	g_timeout_add(10, timeout_cb, ctx);
+	g_timeout_add(10, timeout_cb, self);
 }
 
 static void unit_free(gpointer unit)
@@ -145,5 +145,4 @@ static void unit_free(gpointer unit)
 
 	g_free(u);
 }
-
 

@@ -1,5 +1,8 @@
 #include "robot_sprite.h"
+#include "robot_idrawable.h"
 #include <SDL_image.h>
+
+static void robot_idrawable_init(RobotIDrawableInterface *iface);
 
 static GQuark sdl_error_get(void)
 {
@@ -32,9 +35,14 @@ struct _RobotSpritePrivate {
 	int scale_x, scale_y;
 	gint x, y;
 	SDL_RendererFlip flip;
+
+	RobotSpriteAction action;
 };
 
-G_DEFINE_TYPE_WITH_PRIVATE(RobotSprite, robot_sprite, G_TYPE_OBJECT)
+G_DEFINE_TYPE_WITH_CODE(RobotSprite, robot_sprite, G_TYPE_OBJECT,
+		G_ADD_PRIVATE(RobotSprite)
+		G_IMPLEMENT_INTERFACE(ROBOT_TYPE_IDRAWABLE, robot_idrawable_init)
+)
 
 static void finalize(GObject *obj)
 {
@@ -86,11 +94,12 @@ static void robot_sprite_init(RobotSprite *self)
 	self->priv->texture = NULL;
 	self->priv->frame = 0;
 	self->priv->frames = NULL;
+	self->priv->action = NULL;
 }
 
 RobotSprite* robot_sprite_new(void)
 {
-	RobotSprite* self = g_object_new(X_TYPE_SDL_SPRITE, NULL);
+	RobotSprite* self = g_object_new(ROBOT_TYPE_SPRITE, NULL);
 
 	return self;
 }
@@ -417,4 +426,62 @@ gboolean robot_sprite_from_byte_array(RobotSprite *self, GByteArray *data, GErro
 
 }
 #endif
+
+gboolean robot_sprite_get_rect(RobotSprite *self, SDL_Rect *rect)
+{
+	g_return_val_if_fail(self != NULL && self->priv->texture != NULL && rect != NULL, FALSE);
+
+	get_size(self, &rect->w, &rect->h);
+	rect->x = self->priv->x;
+	rect->y = self->priv->y;
+
+	return TRUE;
+}
+
+void robot_sprite_set_action(RobotSprite *self, RobotSpriteAction action)
+{
+	g_return_if_fail(self != NULL);
+
+	self->priv->action = action;
+}
+
+gint64 robot_sprite_action(RobotSprite *self, gint64 now, void *userdata)
+{
+	g_return_val_if_fail(self && ROBOT_IS_SPRITE(self), -1);
+
+
+	if (self->priv->action) {
+		return self->priv->action(self, now, userdata);
+	}
+
+	return -1;
+}
+
+static gboolean x_get_rect(RobotIDrawable *self, SDL_Rect *rect)
+{
+	g_return_val_if_fail(ROBOT_IS_SPRITE(self), FALSE);
+
+	return robot_sprite_get_rect(ROBOT_SPRITE(self), rect);
+}
+
+static void x_render(RobotIDrawable *self, SDL_Renderer *renderer)
+{
+	g_return_if_fail(ROBOT_IS_SPRITE(self));
+
+	robot_sprite_render(ROBOT_SPRITE(self), renderer);
+}
+
+static gint64 x_action(RobotIDrawable *self, gint64 now, void *userdata)
+{
+	g_return_val_if_fail(ROBOT_IS_SPRITE(self), -1);
+
+	return robot_sprite_action(ROBOT_SPRITE(self), now, userdata);
+}
+
+static void robot_idrawable_init(RobotIDrawableInterface *iface)
+{
+	iface->get_rect = x_get_rect;
+	iface->render = x_render;
+	iface->action = x_action;
+}
 
