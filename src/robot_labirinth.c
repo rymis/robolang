@@ -121,7 +121,7 @@ gboolean robot_labirinth_load(RobotLabirinth *self, const char *filename, GError
 	return FALSE;
 }
 
-void robot_labirinth_set_sprite_for_cell(RobotLabirinth *self, guint cell, XSDLSprite *sprite)
+void robot_labirinth_set_sprite_for_cell(RobotLabirinth *self, guint cell, RobotSprite *sprite)
 {
 	if (cell >= self->priv->sprites->len) {
 		g_ptr_array_set_size(self->priv->sprites, cell + 1);

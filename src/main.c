@@ -3,15 +3,15 @@
 #include <glib.h>
 #include <glib-object.h>
 #include "sdl_source.h"
-#include "x_sdl_sprite.h"
+#include "robot_sprite.h"
 #include "robot.h"
 
 const unsigned WIDTH = 800;
 const unsigned HEIGHT = 600;
 
-static XSDLSprite *sprite = NULL;
-static XSDLSprite *man = NULL;
-static XSDLSprite *cman = NULL;
+static RobotSprite *sprite = NULL;
+static RobotSprite *man = NULL;
+static RobotSprite *cman = NULL;
 static GMainLoop *loop = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Window *window = NULL;
@@ -94,9 +94,9 @@ static gboolean timeout_cb(gpointer ptr)
 	gint x, y;
 	gint dx, dy;
 
-	w = x_sdl_sprite_get_width(sprite);
-	h = x_sdl_sprite_get_height(sprite);
-	x_sdl_sprite_get_position(sprite, &x, &y);
+	w = robot_sprite_get_width(sprite);
+	h = robot_sprite_get_height(sprite);
+	robot_sprite_get_position(sprite, &x, &y);
 
 	if (move == 0) {
 		if (x + w >= WIDTH) {
@@ -138,43 +138,43 @@ static gboolean timeout_cb(gpointer ptr)
 			}
 		}
 	}
-	x_sdl_sprite_set_position(sprite, x, y);
+	robot_sprite_set_position(sprite, x, y);
 
 	if (man_state == 0) { /* Walk right */
 		man_frame++;
-		x_sdl_sprite_move(man, 3, 0);
-		if (x_sdl_sprite_get_x(man) > (int)(WIDTH - 60)) {
+		robot_sprite_move(man, 3, 0);
+		if (robot_sprite_get_x(man) > (int)(WIDTH - 60)) {
 			man_state = 1;
-			x_sdl_sprite_set_mode(man, man_rotate);
+			robot_sprite_set_mode(man, man_rotate);
 			man_frame = 0;
 		}
 	} else if (man_state == 1) { /* rotate */
-		if (man_frame == x_sdl_sprite_get_frames_count(man) - 1) {
+		if (man_frame == robot_sprite_get_frames_count(man) - 1) {
 			man_state = 2;
-			x_sdl_sprite_set_mode(man, man_walk);
+			robot_sprite_set_mode(man, man_walk);
 			man_frame = 0;
 		}
 		man_frame++;
 	} else if (man_state == 2) { /* walk left */
 		man_frame++;
-		x_sdl_sprite_move(man, -3, 0);
-		if (x_sdl_sprite_get_x(man) < 30) {
+		robot_sprite_move(man, -3, 0);
+		if (robot_sprite_get_x(man) < 30) {
 			man_state = 3;
-			x_sdl_sprite_set_mode(man, man_rotate);
+			robot_sprite_set_mode(man, man_rotate);
 			man_frame = 0;
 		}
 	} else { /* rotate */
-		if (man_frame == x_sdl_sprite_get_frames_count(man) - 1) {
+		if (man_frame == robot_sprite_get_frames_count(man) - 1) {
 			man_state = 0;
-			x_sdl_sprite_set_mode(man, man_walk);
+			robot_sprite_set_mode(man, man_walk);
 			man_frame = 0;
 		}
 		man_frame++;
 	}
-	x_sdl_sprite_set_frame(man, man_frame);
+	robot_sprite_set_frame(man, man_frame);
 
 	if (cman_key) {
-		x_sdl_sprite_get_position(cman, &x, &y);
+		robot_sprite_get_position(cman, &x, &y);
 
 		dx = dy = 0;
 		if (cman_key & CMAN_UP)    dy -= 3;
@@ -193,11 +193,11 @@ static gboolean timeout_cb(gpointer ptr)
 		if (y < 10) y = 10;
 		if (y > (int)HEIGHT - 120) y = HEIGHT - 120;
 
-		x_sdl_sprite_set_position(cman, x, y);
-		x_sdl_sprite_set_frame(cman, cman_frame);
+		robot_sprite_set_position(cman, x, y);
+		robot_sprite_set_frame(cman, cman_frame);
 	}
 
-	x_sdl_sprite_rotate(sprite, 1);
+	robot_sprite_rotate(sprite, 1);
 
 	SDL_RenderClear(renderer);
 
@@ -208,9 +208,9 @@ static gboolean timeout_cb(gpointer ptr)
 	SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0xff);
 	*/
 
-	x_sdl_sprite_render(sprite, renderer);
-	x_sdl_sprite_render(man, renderer);
-	x_sdl_sprite_render(cman, renderer);
+	robot_sprite_render(sprite, renderer);
+	robot_sprite_render(man, renderer);
+	robot_sprite_render(cman, renderer);
 
 	SDL_RenderPresent(renderer);
 
@@ -252,14 +252,14 @@ int main(int argc, char *argv[])
 
 	SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0xff);
 
-	sprite = x_sdl_sprite_new();
-	man = x_sdl_sprite_new();
-	cman = x_sdl_sprite_new();
-	x_sdl_sprite_load_from_file(sprite, renderer, "img/test.png", NULL);
-	x_sdl_sprite_load_from_file(man, renderer, "img/man.ini", NULL);
-	x_sdl_sprite_load_from_file(cman, renderer, "img/man.ini", NULL);
-	x_sdl_sprite_set_position(man, 25, HEIGHT / 2);
-	x_sdl_sprite_set_position(cman, WIDTH / 2, HEIGHT / 2);
+	sprite = robot_sprite_new();
+	man = robot_sprite_new();
+	cman = robot_sprite_new();
+	robot_sprite_load_from_file(sprite, renderer, "img/test.png", NULL);
+	robot_sprite_load_from_file(man, renderer, "img/man.ini", NULL);
+	robot_sprite_load_from_file(cman, renderer, "img/man.ini", NULL);
+	robot_sprite_set_position(man, 25, HEIGHT / 2);
+	robot_sprite_set_position(cman, WIDTH / 2, HEIGHT / 2);
 
 	/* Creating main loop: */
 	loop = g_main_loop_new(NULL, FALSE);

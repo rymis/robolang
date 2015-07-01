@@ -1,4 +1,4 @@
-#include "x_sdl_sprite.h"
+#include "robot_sprite.h"
 #include <SDL_image.h>
 
 static GQuark sdl_error_get(void)
@@ -14,7 +14,7 @@ static GQuark sdl_error_get(void)
 #define ERROR_SDL sdl_error_get()
 
 /* Structure for mode representation: */
-struct _XSDLSpritePrivate {
+struct _RobotSpritePrivate {
 	/* All modes. Each mode is array of frames. */
 	GTree *modes;
 
@@ -34,11 +34,11 @@ struct _XSDLSpritePrivate {
 	SDL_RendererFlip flip;
 };
 
-G_DEFINE_TYPE_WITH_PRIVATE(XSDLSprite, x_sdl_sprite, G_TYPE_OBJECT)
+G_DEFINE_TYPE_WITH_PRIVATE(RobotSprite, robot_sprite, G_TYPE_OBJECT)
 
 static void finalize(GObject *obj)
 {
-	XSDLSprite *self = X_SDL_SPRITE(obj);
+	RobotSprite *self = ROBOT_SPRITE(obj);
 
 	g_tree_unref(self->priv->modes);
 
@@ -47,7 +47,7 @@ static void finalize(GObject *obj)
 	self->priv = NULL;
 }
 
-static void x_sdl_sprite_class_init(XSDLSpriteClass *klass)
+static void robot_sprite_class_init(RobotSpriteClass *klass)
 {
 	GObjectClass *objcls = G_OBJECT_CLASS(klass);
 	objcls->finalize = finalize;
@@ -73,9 +73,9 @@ static gint quark_cmp(gconstpointer p1, gconstpointer p2, gpointer userdata)
 	return q1 - q2;
 }
 
-static void x_sdl_sprite_init(XSDLSprite *self)
+static void robot_sprite_init(RobotSprite *self)
 {
-	self->priv = x_sdl_sprite_get_instance_private(self);
+	self->priv = robot_sprite_get_instance_private(self);
 	self->priv->rotation = 0.0;
 	self->priv->scale_x = -1;
 	self->priv->scale_y = -1;
@@ -88,9 +88,9 @@ static void x_sdl_sprite_init(XSDLSprite *self)
 	self->priv->frames = NULL;
 }
 
-XSDLSprite* x_sdl_sprite_new(void)
+RobotSprite* robot_sprite_new(void)
 {
-	XSDLSprite* self = g_object_new(X_TYPE_SDL_SPRITE, NULL);
+	RobotSprite* self = g_object_new(X_TYPE_SDL_SPRITE, NULL);
 
 	return self;
 }
@@ -112,7 +112,7 @@ static SDL_Texture *load_texture(const char *filename, SDL_Renderer *renderer)
 	return texture;
 }
 
-gboolean x_sdl_sprite_load_from_file(XSDLSprite *self, SDL_Renderer *renderer, const char *name, GError **error)
+gboolean robot_sprite_load_from_file(RobotSprite *self, SDL_Renderer *renderer, const char *name, GError **error)
 {
 	SDL_Texture *texture;
 	GQuark mode;
@@ -140,7 +140,7 @@ gboolean x_sdl_sprite_load_from_file(XSDLSprite *self, SDL_Renderer *renderer, c
 
 		g_clear_error(error);
 
-		x_sdl_sprite_add_frame(self, g_quark_from_string("default"), texture);
+		robot_sprite_add_frame(self, g_quark_from_string("default"), texture);
 
 		return TRUE;
 	}
@@ -195,7 +195,7 @@ gboolean x_sdl_sprite_load_from_file(XSDLSprite *self, SDL_Renderer *renderer, c
 					texture = load_texture(nm, renderer);
 
 					if (texture) {
-						x_sdl_sprite_add_frame(self, mode, texture);
+						robot_sprite_add_frame(self, mode, texture);
 					}
 
 					g_free(nm);
@@ -211,12 +211,12 @@ gboolean x_sdl_sprite_load_from_file(XSDLSprite *self, SDL_Renderer *renderer, c
 	return TRUE;
 }
 
-void x_sdl_sprite_get_modes(XSDLSprite *self, GQuark **modes, guint *cnt)
+void robot_sprite_get_modes(RobotSprite *self, GQuark **modes, guint *cnt)
 {
 	/* TODO: */
 }
 
-gboolean x_sdl_sprite_set_mode(XSDLSprite *self, GQuark mode)
+gboolean robot_sprite_set_mode(RobotSprite *self, GQuark mode)
 {
 	GPtrArray *array = g_tree_lookup(self->priv->modes, GUINT_TO_POINTER(mode));
 	if (!array) {
@@ -230,17 +230,17 @@ gboolean x_sdl_sprite_set_mode(XSDLSprite *self, GQuark mode)
 	self->priv->frames = array;
 
 	/* Now we can set current frame */
-	x_sdl_sprite_set_frame(self, 0);
+	robot_sprite_set_frame(self, 0);
 
 	return TRUE;
 }
 
-gboolean x_sdl_sprite_has_mode(XSDLSprite *self, GQuark mode)
+gboolean robot_sprite_has_mode(RobotSprite *self, GQuark mode)
 {
 	return g_tree_lookup(self->priv->modes, GUINT_TO_POINTER(mode)) != NULL;
 }
 
-gboolean x_sdl_sprite_set_default_mode(XSDLSprite *self, GQuark mode)
+gboolean robot_sprite_set_default_mode(RobotSprite *self, GQuark mode)
 {
 	if (g_tree_lookup(self->priv->modes, GUINT_TO_POINTER(mode)) != NULL) {
 		self->priv->default_mode = mode;
@@ -250,7 +250,7 @@ gboolean x_sdl_sprite_set_default_mode(XSDLSprite *self, GQuark mode)
 	return FALSE;
 }
 
-void x_sdl_sprite_set_frame(XSDLSprite *self, guint frame)
+void robot_sprite_set_frame(RobotSprite *self, guint frame)
 {
 	g_return_if_fail(self->priv->frames != NULL);
 	g_return_if_fail(self->priv->frames->len > 0);
@@ -260,14 +260,14 @@ void x_sdl_sprite_set_frame(XSDLSprite *self, guint frame)
 	self->priv->texture = g_ptr_array_index(self->priv->frames, frame);
 }
 
-guint x_sdl_sprite_get_frames_count(XSDLSprite *self)
+guint robot_sprite_get_frames_count(RobotSprite *self)
 {
 	g_return_val_if_fail(self->priv->frames != NULL, 0);
 
 	return self->priv->frames->len;
 }
 
-void x_sdl_sprite_add_frame(XSDLSprite *self, GQuark mode, SDL_Texture *frame)
+void robot_sprite_add_frame(RobotSprite *self, GQuark mode, SDL_Texture *frame)
 {
 	GPtrArray *array = g_tree_lookup(self->priv->modes, GUINT_TO_POINTER(mode));
 
@@ -291,7 +291,7 @@ void x_sdl_sprite_add_frame(XSDLSprite *self, GQuark mode, SDL_Texture *frame)
 
 }
 
-static void get_size(XSDLSprite *self, int *w, int *h)
+static void get_size(RobotSprite *self, int *w, int *h)
 {
 	if (!self->priv->texture) {
 		if (w) *w = 0;
@@ -301,7 +301,7 @@ static void get_size(XSDLSprite *self, int *w, int *h)
 	SDL_QueryTexture(self->priv->texture, NULL, NULL, w, h);
 }
 
-guint x_sdl_sprite_get_width(XSDLSprite *self)
+guint robot_sprite_get_width(RobotSprite *self)
 {
 	int w;
 
@@ -310,7 +310,7 @@ guint x_sdl_sprite_get_width(XSDLSprite *self)
 	return w;
 }
 
-guint x_sdl_sprite_get_height(XSDLSprite *self)
+guint robot_sprite_get_height(RobotSprite *self)
 {
 	int h;
 
@@ -319,13 +319,13 @@ guint x_sdl_sprite_get_height(XSDLSprite *self)
 	return h;
 }
 
-void x_sdl_sprite_set_position(XSDLSprite *self, gint x, gint y)
+void robot_sprite_set_position(RobotSprite *self, gint x, gint y)
 {
 	self->priv->x = x;
 	self->priv->y = y;
 }
 
-void x_sdl_sprite_get_position(XSDLSprite *self, gint *x, gint *y)
+void robot_sprite_get_position(RobotSprite *self, gint *x, gint *y)
 {
 	if (x)
 		*x = self->priv->x;
@@ -333,44 +333,44 @@ void x_sdl_sprite_get_position(XSDLSprite *self, gint *x, gint *y)
 		*y = self->priv->y;
 }
 
-gint x_sdl_sprite_get_x(XSDLSprite *self)
+gint robot_sprite_get_x(RobotSprite *self)
 {
 	return self->priv->x;
 }
 
-gint x_sdl_sprite_get_y(XSDLSprite *self)
+gint robot_sprite_get_y(RobotSprite *self)
 {
 	return self->priv->y;
 }
 
-void x_sdl_sprite_set_rotation(XSDLSprite *self, double angle)
+void robot_sprite_set_rotation(RobotSprite *self, double angle)
 {
 	self->priv->rotation = angle;
 }
 
-double x_sdl_sprite_get_rotation(XSDLSprite *self)
+double robot_sprite_get_rotation(RobotSprite *self)
 {
 	return self->priv->rotation;
 }
 
-void x_sdl_sprite_scale_to(XSDLSprite *self, guint width, guint height)
+void robot_sprite_scale_to(RobotSprite *self, guint width, guint height)
 {
 	self->priv->scale_x = width;
 	self->priv->scale_y = height;
 }
 
-void x_sdl_sprite_rotate(XSDLSprite *self, double angle)
+void robot_sprite_rotate(RobotSprite *self, double angle)
 {
 	self->priv->rotation += angle;
 }
 
-void x_sdl_sprite_move(XSDLSprite *self, gint x, gint y)
+void robot_sprite_move(RobotSprite *self, gint x, gint y)
 {
 	self->priv->x += x;
 	self->priv->y += y;
 }
 
-void x_sdl_sprite_render(XSDLSprite *self, SDL_Renderer *renderer)
+void robot_sprite_render(RobotSprite *self, SDL_Renderer *renderer)
 {
 	SDL_Rect dst;
 
@@ -407,12 +407,12 @@ void x_sdl_sprite_render(XSDLSprite *self, SDL_Renderer *renderer)
  * | U32  | height  | Height of current frame                                |
  * | DATA | data    | Pixels data                                            |
  */
-GByteArray* x_sdl_sprite_to_byte_array(XSDLSprite *self, GError **error)
+GByteArray* robot_sprite_to_byte_array(RobotSprite *self, GError **error)
 {
 
 }
 
-gboolean x_sdl_sprite_from_byte_array(XSDLSprite *self, GByteArray *data, GError **error)
+gboolean robot_sprite_from_byte_array(RobotSprite *self, GByteArray *data, GError **error)
 {
 
 }

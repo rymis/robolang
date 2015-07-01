@@ -2,7 +2,7 @@
 #define _ROBOT_LABIRINTH_H_ 1
 
 #include <glib-object.h>
-#include "x_sdl_sprite.h"
+#include "robot_sprite.h"
 
 G_BEGIN_DECLS
 
@@ -44,7 +44,7 @@ gboolean robot_labirinth_is_wall(RobotLabirinth *self, RobotLabirinthCell cell);
 gboolean robot_labirinth_can_walk(RobotLabirinth *self, guint x, guint y);
 void robot_labirinth_set_cell(RobotLabirinth *self, guint x, guint y, RobotLabirinthCell cell);
 gboolean robot_labirinth_load(RobotLabirinth *self, const char *filename, GError **error);
-void robot_labirinth_set_sprite_for_cell(RobotLabirinth *self, guint cell, XSDLSprite *sprite);
+void robot_labirinth_set_sprite_for_cell(RobotLabirinth *self, guint cell, RobotSprite *sprite);
 void robot_labirinth_render(RobotLabirinth *self, SDL_Renderer *renderer);
 
 G_END_DECLS
