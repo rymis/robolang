@@ -17,3 +17,5 @@ ADD_EXECUTABLE(robot_vm robot_vm_exec.c)
 TARGET_LINK_LIBRARIES(robot_vm ${GLIB_LIBRARIES} robotvm)
 
 
+ADD_EXECUTABLE(test_linalg test_linalg.c)
+
