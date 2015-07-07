@@ -76,7 +76,7 @@ gboolean robot_sprite_load_from_file(RobotSprite *self, SDL_Renderer *renderer, 
  * @cnt [out] pointer to length of array.
  * You must free array using g_free.
  */
-void robot_sprite_get_modes(RobotSprite *self, GQuark **modes, guint *cnt);
+GArray* robot_sprite_get_modes(RobotSprite *self);
 
 /**
  * robot_sprite_set_mode:

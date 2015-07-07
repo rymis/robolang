@@ -55,6 +55,26 @@ struct robot_matrix4 {
 };
 typedef struct robot_matrix4 RobotMatrix4;
 
+robot_inline void robot_vector_muls2(RobotVector2 *res, const RobotVector2 *v, RobotNumber s)
+{
+	res->x = v->x * s;
+	res->y = v->y * s;
+}
+
+robot_inline void robot_vector_muls3(RobotVector3 *res, const RobotVector3 *v, RobotNumber s)
+{
+	res->x = v->x * s;
+	res->y = v->y * s;
+	res->z = v->z * s;
+}
+
+robot_inline void robot_vector_muls4(RobotVector4 *res, const RobotVector4 *v, RobotNumber s)
+{
+	res->x = v->x * s;
+	res->y = v->y * s;
+	res->z = v->z * s;
+	res->a = v->a * s;
+}
 
 robot_inline void robot_vector_add2(RobotVector2 *res, const RobotVector2 *a, const RobotVector2 *b)
 {
@@ -111,6 +131,27 @@ robot_inline void robot_vector_sub4(RobotVector4 *res, const RobotVector4 *a, co
 robot_inline RobotNumber robot_vector_smul4(const RobotVector4 *a, const RobotVector4 *b)
 {
 	return a->x * b->x + a->y * b->y + a->z * b->z + a->a * b->a;
+}
+
+robot_inline void robot_matrix_muls2(RobotMatrix2 *res, const RobotMatrix2 *m, RobotNumber s)
+{
+	robot_vector_muls2(&res->r1, &m->r1, s);
+	robot_vector_muls2(&res->r2, &m->r2, s);
+}
+
+robot_inline void robot_matrix_muls3(RobotMatrix3 *res, const RobotMatrix3 *m, RobotNumber s)
+{
+	robot_vector_muls3(&res->r1, &m->r1, s);
+	robot_vector_muls3(&res->r2, &m->r2, s);
+	robot_vector_muls3(&res->r3, &m->r3, s);
+}
+
+robot_inline void robot_matrix_muls4(RobotMatrix4 *res, const RobotMatrix4 *m, RobotNumber s)
+{
+	robot_vector_muls4(&res->r1, &m->r1, s);
+	robot_vector_muls4(&res->r2, &m->r2, s);
+	robot_vector_muls4(&res->r3, &m->r3, s);
+	robot_vector_muls4(&res->r4, &m->r4, s);
 }
 
 robot_inline void robot_matrix_add2(RobotMatrix2 *res, const RobotMatrix2 *m1, const RobotMatrix2 *m2)
@@ -365,6 +406,14 @@ robot_inline int robot_matrix_print4(RobotPrintFunctions *f, void *ctx, const Ro
 #define vector_print2 robot_vector_print2
 #define vector_print3 robot_vector_print3
 #define vector_print4 robot_vector_print4
+
+#define matrix_muls2 robot_matrix_muls2
+#define matrix_muls3 robot_matrix_muls3
+#define matrix_muls4 robot_matrix_muls4
+
+#define vector_muls2 robot_matrix_muls2
+#define vector_muls3 robot_matrix_muls3
+#define vector_muls4 robot_matrix_muls4
 
 #endif
 

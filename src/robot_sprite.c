@@ -220,9 +220,23 @@ gboolean robot_sprite_load_from_file(RobotSprite *self, SDL_Renderer *renderer, 
 	return TRUE;
 }
 
-void robot_sprite_get_modes(RobotSprite *self, GQuark **modes, guint *cnt)
+static gboolean traverse(gpointer key, gpointer value, gpointer data)
 {
-	/* TODO: */
+	GArray *array = data;
+	GQuark q = GPOINTER_TO_UINT(value);
+
+	g_array_append_val(array, q);
+
+	return TRUE;
+}
+
+GArray* robot_sprite_get_modes(RobotSprite *self)
+{
+	GArray *res = g_array_new(sizeof(GQuark), FALSE, FALSE);
+
+	g_tree_foreach(self->priv->modes, traverse, res);
+
+	return res;
 }
 
 gboolean robot_sprite_set_mode(RobotSprite *self, GQuark mode)

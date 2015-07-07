@@ -5,6 +5,7 @@
 #include "sdl_source.h"
 #include "robot_sprite.h"
 #include "robot_scene.h"
+#include "robot_robot.h"
 #include "robot.h"
 
 const unsigned WIDTH = 800;
@@ -17,6 +18,8 @@ static RobotSprite *cman = NULL;
 static GMainLoop *loop = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Window *window = NULL;
+
+static RobotRobot *robot = NULL;
 
 static GQuark man_walk = 0;
 static GQuark man_rotate = 0;
@@ -238,6 +241,8 @@ static gboolean timeout_cb(gpointer ptr)
 static int test_vm(void);
 int main(int argc, char *argv[])
 {
+	GError *error = NULL;
+
 	if (argc > 1 && !strcmp(argv[1], "vm")) {
 		return test_vm();
 	}
@@ -277,11 +282,18 @@ int main(int argc, char *argv[])
 	sprite = robot_sprite_new();
 	man = robot_sprite_new();
 	cman = robot_sprite_new();
+	robot = robot_robot_new();
 	robot_sprite_load_from_file(sprite, renderer, "img/test.png", NULL);
 	robot_sprite_load_from_file(man, renderer, "img/man.ini", NULL);
 	robot_sprite_load_from_file(cman, renderer, "img/man.ini", NULL);
+	if (!robot_robot_load_from_file(robot, renderer, "img/robot.ini", &error)) {
+		fprintf(stderr, "Error: can't load robot :(\n");
+		fprintf(stderr, "[%s]\n", error->message);
+		return -1;
+	}
 	robot_sprite_set_position(man, 25, HEIGHT / 2);
 	robot_sprite_set_position(cman, WIDTH / 2, HEIGHT / 2);
+	robot_sprite_set_position(robot, WIDTH / 4, HEIGHT / 4);
 
 	robot_sprite_set_action(sprite, sprite_action_cb);
 	robot_sprite_set_action(man, man_action_cb);
@@ -290,6 +302,7 @@ int main(int argc, char *argv[])
 	robot_scene_add_drawable(scene, ROBOT_IDRAWABLE(sprite), 0, NULL, NULL);
 	robot_scene_add_drawable(scene, ROBOT_IDRAWABLE(man), 0, NULL, NULL);
 	robot_scene_add_drawable(scene, ROBOT_IDRAWABLE(cman), 0, NULL, NULL);
+	robot_scene_add_drawable(scene, ROBOT_IDRAWABLE(robot), 0, NULL, NULL);
 
 	/* Creating main loop: */
 	g_timeout_add(30, timeout_cb, NULL);
