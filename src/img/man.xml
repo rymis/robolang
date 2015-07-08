@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- # Man walking over the screen :) -->
+<sprite>
+	<mode name="walk" duration="3.0">
+		<frame img="walk-0.png"/>
+		<frame img="walk-1.png"/>
+		<frame img="walk-2.png"/>
+		<frame img="walk-3.png"/>
+		<frame img="walk-4.png"/>
+		<frame img="walk-5.png"/>
+		<frame img="walk-6.png"/>
+		<frame img="walk-7.png"/>
+		<frame img="walk-8.png"/>
+		<frame img="walk-9.png"/>
+		<frame img="walk-10.png"/>
+		<frame img="walk-11.png"/>
+		<frame img="walk-12.png"/>
+		<frame img="walk-13.png"/>
+		<frame img="walk-14.png"/>
+		<frame img="walk-15.png"/>
+		<frame img="walk-16.png"/>
+		<frame img="walk-17.png"/>
+		<frame img="walk-18.png"/>
+		<frame img="walk-19.png"/>
+	</mode>
+
+	<mode name="rotate" duration="2.0">
+		<frame img="rotate-0.png"/>
+		<frame img="rotate-1.png"/>
+		<frame img="rotate-2.png"/>
+		<frame img="rotate-3.png"/>
+		<frame img="rotate-4.png"/>
+		<frame img="rotate-5.png"/>
+		<frame img="rotate-6.png"/>
+		<frame img="rotate-7.png"/>
+		<frame img="rotate-8.png"/>
+		<frame img="rotate-9.png"/>
+		<frame img="rotate-10.png"/>
+	</mode>
+</sprite>
