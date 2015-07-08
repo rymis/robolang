@@ -284,16 +284,16 @@ int main(int argc, char *argv[])
 	cman = robot_sprite_new();
 	robot = robot_robot_new();
 	robot_sprite_load_from_file(sprite, renderer, "img/test.png", NULL);
-	robot_sprite_load_from_file(man, renderer, "img/man.ini", NULL);
-	robot_sprite_load_from_file(cman, renderer, "img/man.ini", NULL);
-	if (!robot_robot_load_from_file(robot, renderer, "img/robot.ini", &error)) {
+	robot_sprite_load_from_file(man, renderer, "img/man.xml", NULL);
+	robot_sprite_load_from_file(cman, renderer, "img/man.xml", NULL);
+	if (!robot_robot_load_from_file(robot, renderer, "img/robot.xml", &error)) {
 		fprintf(stderr, "Error: can't load robot :(\n");
 		fprintf(stderr, "[%s]\n", error->message);
 		return -1;
 	}
 	robot_sprite_set_position(man, 25, HEIGHT / 2);
 	robot_sprite_set_position(cman, WIDTH / 2, HEIGHT / 2);
-	robot_sprite_set_position(robot, WIDTH / 4, HEIGHT / 4);
+	robot_sprite_set_position(ROBOT_SPRITE(robot), WIDTH / 4, HEIGHT / 4);
 
 	robot_sprite_set_action(sprite, sprite_action_cb);
 	robot_sprite_set_action(man, man_action_cb);

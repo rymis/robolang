@@ -1,5 +1,6 @@
 #include "robot_sprite.h"
 #include "robot_idrawable.h"
+#include "robot_xml.h"
 #include <SDL_image.h>
 
 static void robot_idrawable_init(RobotIDrawableInterface *iface);
@@ -124,15 +125,7 @@ static SDL_Texture *load_texture(const char *filename, SDL_Renderer *renderer)
 gboolean robot_sprite_load_from_file(RobotSprite *self, SDL_Renderer *renderer, const char *name, GError **error)
 {
 	SDL_Texture *texture;
-	GQuark mode;
-	GKeyFile *kfile;
-	gchar** groups;
-	gsize groups_cnt;
-	gchar** keys;
-	gsize keys_cnt;
-	guint g, k;
-	gchar *nm;
-	gchar *dirname = NULL;
+	RobotXml *xml;
 
 	if (!g_file_test(name, G_FILE_TEST_EXISTS)) {
 		g_set_error(error, ERROR_SDL, -1, "File not found: %s", name);
@@ -140,8 +133,8 @@ gboolean robot_sprite_load_from_file(RobotSprite *self, SDL_Renderer *renderer, 
 	}
 
 	/* Trying to load this texture as .ini file: */
-	kfile = g_key_file_new();
-	if (!g_key_file_load_from_file(kfile, name, 0, error)) {
+	xml = robot_xml_load_from_file(name, error);
+	if (!xml) {
 		texture = load_texture(name, renderer);
 		if (!texture) {
 			return FALSE;
@@ -154,67 +147,85 @@ gboolean robot_sprite_load_from_file(RobotSprite *self, SDL_Renderer *renderer, 
 		return TRUE;
 	}
 
-	groups = g_key_file_get_groups(kfile, &groups_cnt);
-	if (!groups_cnt) {
-		g_strfreev(groups);
-		g_set_error(error, ERROR_SDL, -1, "Invalid sprite: no modes");
+	if (!robot_sprite_from_xml_node(self, renderer, name, xml, error)) {
+		g_object_unref(xml);
+		return FALSE;
+	}
+	g_object_unref(xml);
+	
+	return TRUE;
+}
+
+gboolean robot_sprite_from_xml_node(RobotSprite *self, SDL_Renderer *renderer, const gchar* name, RobotXml *xml, GError **error)
+{
+	guint modes_cnt;
+	guint frames_cnt;
+	guint i, j;
+	guint frames = 0;
+	const gchar *mname;
+	const gchar *fname;
+	gchar *dirname = NULL;
+	RobotXml *mxml;
+	RobotXml *fxml;
+	GQuark mode;
+	gchar *nm;
+	SDL_Texture *texture;
+
+	if (strcmp(robot_xml_get_name(xml), "sprite")) {
+		g_set_error(error, ERROR_SDL, -1, "Invalid sprite: %s", name);
+		g_object_unref(xml);
 		return FALSE;
 	}
 
-	for (g = 0; g < groups_cnt; g++) {
-		if (!strcmp(groups[g], "config")) {
-			keys = g_key_file_get_keys(kfile, groups[g], &keys_cnt, NULL);
+	modes_cnt = robot_xml_get_children_count(xml);
+	for (i = 0; i < modes_cnt; i++) {
+		mxml = robot_xml_get_child(xml, i);
+		if (!mxml)
+			continue;
+		if (strcmp(robot_xml_get_name(mxml), "mode"))
+			continue;
+		mname = robot_xml_get_attribute(mxml, "name");
+		if (!mname)
+			continue;
+		mode = g_quark_from_string(mname);
 
-			if (!keys) {
+		frames_cnt = robot_xml_get_children_count(mxml);
+		for (j = 0; j < frames_cnt; j++) {
+			fxml = robot_xml_get_child(mxml, j);
+
+			if (!fxml)
 				continue;
-			}
-
-			for (k = 0; k < keys_cnt; k++) {
-				nm = g_key_file_get_string(kfile, groups[g], keys[k], NULL);
-
-				g_object_set_data_full(G_OBJECT(self), keys[k], nm, g_free);
-			}
-
-			g_strfreev(keys);
-		} else {
-			mode = g_quark_from_string(groups[g]);
-
-			keys = g_key_file_get_keys(kfile, groups[g], &keys_cnt, NULL);
-
-			if (!keys) {
+			if (strcmp(robot_xml_get_name(fxml), "frame"))
 				continue;
+			fname = robot_xml_get_attribute(fxml, "img");
+			if (!fname)
+				continue;
+			nm = g_strdup(fname);
+
+			if (!g_path_is_absolute(nm)) {
+				gchar *tmp;
+
+				if (!dirname)
+					dirname = g_path_get_dirname(name);
+
+				tmp = g_build_filename(dirname, nm, NULL);
+				g_free(nm);
+
+				nm = tmp;
 			}
 
-			for (k = 0; k < keys_cnt; k++) {
-				/* Trying to load all the frames: */
-				nm = g_key_file_get_string(kfile, groups[g], keys[k], NULL);
-				if (!g_path_is_absolute(nm)) {
-					gchar *tmp;
+			if (nm) {
+				texture = load_texture(nm, renderer);
 
-					if (!dirname)
-						dirname = g_path_get_dirname(name);
-
-					tmp = g_build_filename(dirname, nm, NULL);
-					g_free(nm);
-
-					nm = tmp;
+				if (texture) {
+					frames++;
+					robot_sprite_add_frame(self, mode, texture);
 				}
 
-				if (nm) {
-					texture = load_texture(nm, renderer);
-
-					if (texture) {
-						robot_sprite_add_frame(self, mode, texture);
-					}
-
-					g_free(nm);
-				}
+				g_free(nm);
 			}
-
-			g_strfreev(keys);
 		}
 	}
-
 	g_free(dirname);
 
 	return TRUE;

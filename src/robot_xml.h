@@ -53,6 +53,10 @@ void robot_xml_remove_child(RobotXml *self, guint idx);
 RobotXml* robot_xml_get_child(RobotXml *self, guint idx);
 guint robot_xml_get_children_count(RobotXml *self);
 
+RobotXml *robot_xml_get_next_sibling(RobotXml *self);
+RobotXml *robot_xml_get_previous_sibling(RobotXml *self);
+RobotXml *robot_xml_get_child_by_name(RobotXml *self, const gchar *name);
+
 const gchar* robot_xml_get_attribute(RobotXml *self, const gchar* name);
 void robot_xml_set_attribute(RobotXml *self, const gchar *name, const gchar *value);
 void robot_xml_del_attribute(RobotXml *self, const gchar *name);
@@ -61,6 +65,9 @@ gchar** robot_xml_list_attributes(RobotXml *self);
 
 RobotXml* robot_xml_parse(const gchar* xml, gssize len, GError **error);
 gchar* robot_xml_to_string(RobotXml *self, gboolean add_prefix, GError **error);
+gchar* robot_xml_get_inner_xml(RobotXml *self, GError **error);
+gchar* robot_xml_get_inner_text(RobotXml *self, GError **error);
+RobotXml* robot_xml_load_from_file(const gchar* file, GError **error);
 
 G_END_DECLS
 

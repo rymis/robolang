@@ -6,7 +6,7 @@ import os, sys, shutil
 mypath = None
 robot_pov = None
 robot_dir = None
-ini_file = None
+xml_file = None
 robot_options = None
 last_image = 0
 
@@ -31,48 +31,42 @@ def gen_robot(body_rot, larm_rot, rarm_rot, lleg_rot, rleg_rot):
     os.unlink(robot_options)
     return snm
 
+def frame(nm):
+    xml_file.write('\t\t<frame img="%s"/>\n' % nm)
+
 def gen_walk(nm, brot):
-    ini_file.write("[%s]\n" % nm)
-    n = 0
+    xml_file.write('\t<mode name="%s">\n' % nm)
     for i in range(4):
-        nm = gen_robot(brot, i * 10.0, -i * 10.0, -i * 12.0, i * 12.0)
-        ini_file.write("img%d = %s\n" % (n, nm))
-        n += 1
+        frame(gen_robot(brot, i * 10.0, -i * 10.0, -i * 12.0, i * 12.0))
 
     for i in range(3):
-        nm = gen_robot(brot, (2 - i) * 10.0, -(2 - i) * 10.0, -(2 - i) * 12.0, (2 - i) * 12.0)
-        ini_file.write("img%d = %s\n" % (n, nm))
-        n += 1
+        frame(gen_robot(brot, (2 - i) * 10.0, -(2 - i) * 10.0, -(2 - i) * 12.0, (2 - i) * 12.0))
 
     for i in range(4):
-        nm = gen_robot(brot, -i * 10.0, i * 10.0, i * 12.0, -i * 12.0)
-        ini_file.write("img%d = %s\n" % (n, nm))
-        n += 1
+        frame(gen_robot(brot, -i * 10.0, i * 10.0, i * 12.0, -i * 12.0))
 
     for i in range(2):
-        nm = gen_robot(brot, -(2 - i) * 10.0, (2 - i) * 10.0, (2 - i) * 12.0, -(2 - i) * 12.0)
-        ini_file.write("img%d = %s\n" % (n, nm))
-        n += 1
+        frame(gen_robot(brot, -(2 - i) * 10.0, (2 - i) * 10.0, (2 - i) * 12.0, -(2 - i) * 12.0))
+    xml_file.write('\t</mode>\n')
 
 def gen_rotate(nm, a1, a2):
     d = (a2 - a1) / 10.0
-    ini_file.write("[%s]\n" % nm)
+    xml_file.write('\t<mode name="%s">\n' % nm)
     for i in range(11):
         j = (i % 3) - 1
-        nm = gen_robot(a1 + i * d, j * 10, -j * 10, -j * 12, j * 12)
-        ini_file.write("img%d = %s\n" % (i, nm))
+        frame(gen_robot(a1 + i * d, j * 10, -j * 10, -j * 12, j * 12))
+    xml_file.write('\t</mode>\n')
 
 def gen_check(nm, brot):
-    ini_file.write("[%s]\n" % nm)
+    xml_file.write('\t<mode name="%s">\n' % nm)
     for i in range(10):
-        nm = gen_robot(brot, 0, i * 10, 0, 0)
-        ini_file.write("img%d = %s\n" % (i, nm))
+        frame(gen_robot(brot, 0, i * 10, 0, 0))
     for i in range(9):
-        nm = gen_robot(brot, 0, (8 - i) * 10, 0, 0)
-        ini_file.write("img%d = %s\n" % ((i + 9), nm))
+        frame(gen_robot(brot, 0, (8 - i) * 10, 0, 0))
+    xml_file.write('\t</mode>\n')
 
 def main():
-    global mypath, robot_pov, robot_dir, ini_file, robot_options
+    global mypath, robot_pov, robot_dir, xml_file, robot_options
     mypath = os.path.abspath(os.path.dirname(sys.argv[0]))
     robot_pov = os.path.join(mypath, "robot.pov")
     if not os.path.exists(robot_pov):
@@ -81,9 +75,11 @@ def main():
     if not os.path.isdir(robot_dir):
         os.mkdir(robot_dir)
     robot_options = os.path.join(mypath, "robot_options.inc")
-    robot_ini = os.path.join(mypath, "robot.ini")
-    ini_file = open(robot_ini, "wt")
-    ini_file.write("# This file is generated automatically from robot.pov\n\n")
+    robot_ini = os.path.join(mypath, "robot.xml")
+    xml_file = open(robot_ini, "wt")
+    xml_file.write('<?xml version="1.0" encoding="utf-8"?>\n')
+    xml_file.write("<!-- This file is generated automatically from robot.pov -->\n\n")
+    xml_file.write("<sprite>\n")
 
     gen_walk("walk_d", 0)
     gen_walk("walk_u", 180)
@@ -105,7 +101,8 @@ def main():
     gen_check("check_l", 90)
     gen_check("check_u", 180)
 
-    ini_file.close()
+    xml_file.write("</sprite>\n")
+    xml_file.close()
 
 if __name__ == '__main__':
     main()

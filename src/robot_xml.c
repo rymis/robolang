@@ -186,6 +186,14 @@ void robot_xml_insert_child(RobotXml *self, guint idx, RobotXml *child)
 
 void robot_xml_remove_child(RobotXml *self, guint idx)
 {
+	RobotXml *child;
+
+	if (idx >= self->priv->children->len)
+		return;
+
+	child = g_ptr_array_index(self->priv->children, idx);
+	robot_xml_set_parent(child, NULL);
+
 	g_ptr_array_remove_index(self->priv->children, idx);
 }
 
@@ -366,6 +374,39 @@ RobotXml* robot_xml_parse(const gchar* xml, gssize len, GError **error)
 	return pctx.root;
 }
 
+RobotXml* robot_xml_load_from_file(const gchar* file, GError **error)
+{
+	GString *s = NULL;
+	char buf[1024];
+	FILE *f;
+	gssize len;
+	RobotXml *xml;
+	gchar *data;
+
+	f = fopen(file, "rt");
+	if (!f) {
+		g_set_error(error, G_MARKUP_ERROR, G_MARKUP_ERROR_PARSE, "Can not open file: %s", file);
+		return NULL;
+	}
+
+	s = g_string_new("");
+	for (;;) {
+		len = fread(buf, 1, sizeof(buf), f);
+		if (len <= 0)
+			break;
+		g_string_append_len(s, buf, len);
+	}
+	fclose(f);
+
+	data = g_string_free(s, FALSE);
+	printf("DATA:\n%s\n", data);
+	xml = robot_xml_parse(data, -1, error);
+
+	g_free(data);
+
+	return xml;
+}
+
 static void p_offset(GString *s, guint offset)
 {
 	guint i;
@@ -465,4 +506,63 @@ gchar* robot_xml_to_string(RobotXml *self, gboolean add_prefix, GError **error)
 	return g_string_free(s, FALSE);
 }
 
+gchar* robot_xml_get_inner_xml(RobotXml *self, GError **error);
+gchar* robot_xml_get_inner_text(RobotXml *self, GError **error);
+
+RobotXml *robot_xml_get_next_sibling(RobotXml *self)
+{
+	RobotXml *parent = robot_xml_get_parent(self);
+	RobotXml *res = NULL;
+	guint i, cnt;
+
+	if (!parent) {
+		return NULL;
+	}
+
+	cnt = robot_xml_get_children_count(parent);
+	for (i = 0; i < cnt - 1; i++) {
+		if (robot_xml_get_child(parent, i) == self) {
+			res = robot_xml_get_child(parent, i + 1);
+			break;
+		}
+	}
+
+	return res;
+}
+
+RobotXml *robot_xml_get_previous_sibling(RobotXml *self)
+{
+	RobotXml *parent = robot_xml_get_parent(self);
+	RobotXml *res = NULL;
+	guint i, cnt;
+
+	if (!parent) {
+		return NULL;
+	}
+
+	cnt = robot_xml_get_children_count(parent);
+	for (i = 1; i < cnt; i++) {
+		if (robot_xml_get_child(parent, i) == self) {
+			res = robot_xml_get_child(parent, i - 1);
+			break;
+		}
+	}
+
+	return res;
+}
+
+RobotXml *robot_xml_get_child_by_name(RobotXml *self, const gchar *name)
+{
+	RobotXml *c = NULL;
+	guint i, cnt;
+
+	cnt = robot_xml_get_children_count(self);
+	for (i = 0; i < cnt; i++) {
+		c = robot_xml_get_child(self, i);
+		if (c && !strcmp(robot_xml_get_name(c), name))
+			return c;
+	}
+
+	return NULL;
+}
 

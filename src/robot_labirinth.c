@@ -117,7 +117,7 @@ void robot_labirinth_set_cell(RobotLabirinth *self, guint x, guint y, RobotLabir
  */
 gboolean robot_labirinth_load(RobotLabirinth *self, const char *filename, GError **error)
 {
-	
+
 	return FALSE;
 }
 

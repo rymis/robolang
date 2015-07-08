@@ -13,6 +13,7 @@
  */
 #include <glib-object.h>
 #include <SDL.h>
+#include "robot_xml.h"
 
 G_BEGIN_DECLS
 
@@ -67,6 +68,7 @@ RobotSprite* robot_sprite_new(void);
  * @return TRUE on success and FALSE on error.
  */
 gboolean robot_sprite_load_from_file(RobotSprite *self, SDL_Renderer *renderer, const char *name, GError **error);
+gboolean robot_sprite_from_xml_node(RobotSprite *self, SDL_Renderer *renderer, const gchar* name, RobotXml *xml, GError **error);
 
 /**
  * robot_sprite_get_modes:
