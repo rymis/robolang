@@ -187,6 +187,7 @@ gboolean robot_sprite_from_xml_node(RobotSprite *self, SDL_Renderer *renderer, c
 		mname = robot_xml_get_attribute(mxml, "name");
 		if (!mname)
 			continue;
+
 		mode = g_quark_from_string(mname);
 
 		frames_cnt = robot_xml_get_children_count(mxml);
@@ -200,6 +201,7 @@ gboolean robot_sprite_from_xml_node(RobotSprite *self, SDL_Renderer *renderer, c
 			fname = robot_xml_get_attribute(fxml, "img");
 			if (!fname)
 				continue;
+
 			nm = g_strdup(fname);
 
 			if (!g_path_is_absolute(nm)) {

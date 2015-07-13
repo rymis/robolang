@@ -34,6 +34,7 @@ struct _RobotRobotClass {
 
 RobotRobot* robot_robot_new(void);
 gboolean robot_robot_load_from_file(RobotRobot *self, SDL_Renderer *renderer, const char *name, GError **error);
+gboolean robot_robot_from_xml_node(RobotRobot *self, SDL_Renderer *renderer, const gchar* name, RobotXml *xml, GError **error);
 
 G_END_DECLS
 

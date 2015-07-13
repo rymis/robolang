@@ -3,7 +3,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-
 struct _RobotXmlPrivate {
 	/* Tag name: */
 	gchar *name;
@@ -283,8 +282,6 @@ static void x_start_element(
 		ctx->root = xml;
 		ctx->x = xml;
 	}
-
-	printf("START: %s\n", element_name);
 }
 
 static void x_end_element(
@@ -301,8 +298,6 @@ static void x_end_element(
 	ctx->x = robot_xml_get_parent(ctx->x);
 	if (ctx->x)
 		g_object_unref(ctx->x);
-
-	printf("END: %s\n", element_name);
 }
 
 static void x_text(
@@ -326,8 +321,6 @@ static void x_text(
 
 	xml = robot_xml_new_text(text, text_len);
 	robot_xml_append_child(ctx->x, xml);
-
-	printf("TEXT:\n");
 }
 
 static void x_passthrough(
@@ -399,7 +392,6 @@ RobotXml* robot_xml_load_from_file(const gchar* file, GError **error)
 	fclose(f);
 
 	data = g_string_free(s, FALSE);
-	printf("DATA:\n%s\n", data);
 	xml = robot_xml_parse(data, -1, error);
 
 	g_free(data);
@@ -564,5 +556,48 @@ RobotXml *robot_xml_get_child_by_name(RobotXml *self, const gchar *name)
 	}
 
 	return NULL;
+}
+
+gboolean robot_xml_is_name(RobotXml *self, const gchar *name)
+{
+	if (self && self->priv->name)
+		return strcmp(self->priv->name, name) == 0;
+	return FALSE;
+}
+
+glong robot_xml_get_attribute_long(RobotXml *self, const gchar *name, glong defval)
+{
+	const char *v = robot_xml_get_attribute(self, name);
+	gchar *end_ptr = NULL;
+	glong res;
+
+	if (!v) {
+		return defval;
+	}
+
+	res = g_ascii_strtoll(v, &end_ptr, 10);
+	if (end_ptr == v)
+		return defval;
+
+	return res;
+}
+
+gboolean robot_xml_get_attribute_boolean(RobotXml *self, const gchar *name, gboolean defval)
+{
+	const char *v = robot_xml_get_attribute(self, name);
+
+	if (!v) {
+		return defval;
+	}
+
+	if (!g_ascii_strcasecmp(v, "true") || !g_ascii_strcasecmp(v, "yes")) {
+		return TRUE;
+	}
+
+	if (!g_ascii_strcasecmp(v, "false") || !g_ascii_strcasecmp(v, "no")) {
+		return FALSE;
+	}
+
+	return defval;
 }
 

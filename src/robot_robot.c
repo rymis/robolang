@@ -87,6 +87,29 @@ RobotRobot* robot_robot_new(void)
 	return self;
 }
 
+gboolean robot_robot_from_xml_node(RobotRobot *self, SDL_Renderer *renderer, const gchar* name, RobotXml *xml, GError **error)
+{
+	guint i;
+
+	if (!robot_sprite_from_xml_node(ROBOT_SPRITE(self), renderer, name, xml, error)) {
+		return FALSE;
+	}
+
+	for (i = 0; i < mode_cnt; i++) {
+		if (!robot_sprite_has_mode(ROBOT_SPRITE(self), mode_list[i].mode)) {
+			g_set_error(error, ROBOT_ERROR, ROBOT_ERROR_SYNTAX, "Not all modes in sprite: %s is absent", mode_list[i].name);
+			return FALSE;
+		}
+	}
+
+	self->priv->mode = 0;
+	set_mode(self);
+
+	robot_sprite_set_action(ROBOT_SPRITE(self), robot_robot_action);
+
+	return TRUE;
+}
+
 gboolean robot_robot_load_from_file(RobotRobot *self, SDL_Renderer *renderer, const char *name, GError **error)
 {
 	guint i;

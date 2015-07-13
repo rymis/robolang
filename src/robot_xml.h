@@ -41,6 +41,7 @@ RobotXml* robot_xml_new_with_attributes(const gchar *name, const gchar *first_at
 RobotXml* robot_xml_new_text(const gchar *text, gssize len);
 
 const gchar* robot_xml_get_name(RobotXml *self);
+gboolean robot_xml_is_name(RobotXml *self, const gchar *name);
 const gchar* robot_xml_get_text(RobotXml *self);
 void robot_xml_set_parent(RobotXml *self, RobotXml *parent);
 gsize robot_xml_get_text_len(RobotXml *self);
@@ -58,6 +59,8 @@ RobotXml *robot_xml_get_previous_sibling(RobotXml *self);
 RobotXml *robot_xml_get_child_by_name(RobotXml *self, const gchar *name);
 
 const gchar* robot_xml_get_attribute(RobotXml *self, const gchar* name);
+glong robot_xml_get_attribute_long(RobotXml *self, const gchar *name, glong defval);
+gboolean robot_xml_get_attribute_boolean(RobotXml *self, const gchar *name, gboolean defval);
 void robot_xml_set_attribute(RobotXml *self, const gchar *name, const gchar *value);
 void robot_xml_del_attribute(RobotXml *self, const gchar *name);
 /** Get NULL-terminated list of attributes. Use g_strvfree to free one. */

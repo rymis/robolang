@@ -36,14 +36,12 @@ struct _RobotLabirinthClass {
 };
 
 RobotLabirinth* robot_labirinth_new(void);
-RobotLabirinth* robot_labirinth_new_full(guint width, guint height, guint wall_start);
 void robot_labirinth_set_size(RobotLabirinth *self, guint width, guint height);
-void robot_labirinth_set_wall_start(RobotLabirinth *self, guint wall_start);
 RobotLabirinthCell robot_labirinth_get_cell(RobotLabirinth *self, guint x, guint y);
 gboolean robot_labirinth_is_wall(RobotLabirinth *self, RobotLabirinthCell cell);
 gboolean robot_labirinth_can_walk(RobotLabirinth *self, guint x, guint y);
 void robot_labirinth_set_cell(RobotLabirinth *self, guint x, guint y, RobotLabirinthCell cell);
-gboolean robot_labirinth_load(RobotLabirinth *self, const char *filename, GError **error);
+gboolean robot_labirinth_load(RobotLabirinth *self, const char *filename, SDL_Renderer *renderer, GError **error);
 void robot_labirinth_set_sprite_for_cell(RobotLabirinth *self, guint cell, RobotSprite *sprite);
 void robot_labirinth_render(RobotLabirinth *self, SDL_Renderer *renderer);
 
