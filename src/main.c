@@ -9,6 +9,10 @@
 #include "robot_labirinth.h"
 #include "robot.h"
 
+#include "lua.h"
+#include "lualib.h"
+#include "lauxlib.h"
+
 const unsigned WIDTH = 800;
 const unsigned HEIGHT = 600;
 
@@ -17,6 +21,8 @@ static RobotLabirinth *labirinth = NULL;
 static GMainLoop *loop = NULL;
 static SDL_Renderer *renderer = NULL;
 static SDL_Window *window = NULL;
+
+static lua_State *LUA = NULL;
 
 static gboolean timeout_cb(gpointer ptr)
 {
@@ -54,7 +60,6 @@ static gboolean idle_cb(gpointer ptr)
 	if (robot_labirinth_is_done(labirinth)) {
 		if (last_cmd == ROBOT_CHECK) {
 			if (robot_labirinth_get_result(labirinth)) {
-printf("{WALK}\n");
 				last_cmd = ROBOT_WALK;
 				robot_labirinth_walk(labirinth);
 			} else {
@@ -64,20 +69,16 @@ printf("{WALK}\n");
 			c = rand() % 6;
 
 			if (robot_labirinth_is_finish(labirinth)) {
-printf("{OK}\n");
 				return FALSE;
 			}
 
 			if (c == 0) {
-printf("{LEFT}\n");
 				last_cmd = ROBOT_ROTATE_LEFT;
 				robot_labirinth_rotate_left(labirinth);
 			} else if (c == 1) {
-printf("{RIGHT}\n");
 				last_cmd = ROBOT_ROTATE_RIGHT;
 				robot_labirinth_rotate_right(labirinth);
 			} else {
-printf("{CHECK}\n");
 				last_cmd = ROBOT_CHECK;
 				robot_labirinth_check(labirinth);
 			}
@@ -88,6 +89,7 @@ printf("{CHECK}\n");
 }
 
 static int test_vm(void);
+static int init_lua(void);
 int main(int argc, char *argv[])
 {
 	GError *error = NULL;
@@ -136,6 +138,7 @@ int main(int argc, char *argv[])
 	g_timeout_add(30, timeout_cb, NULL);
 	g_idle_add(idle_cb, NULL);
 	x_sdl_add_source(loop, event_cb, NULL, NULL);
+	init_lua();
 
 	g_main_loop_run(loop);
 
@@ -198,6 +201,41 @@ static int test_vm(void)
 
 	g_object_unref(vm);
 	g_object_unref(obj);
+
+	return 0;
+}
+
+#define LUA_GBOOLEAN_VOID(nm) \
+static int l_##nm(lua_State *lua) \
+{ \
+	gboolean res = robot_labirinth_##nm(labirinth); \
+	lua_pushnumber(lua, res? 1: 0); \
+	return 1; \
+}
+
+LUA_GBOOLEAN_VOID(is_finish);
+LUA_GBOOLEAN_VOID(check);
+LUA_GBOOLEAN_VOID(walk);
+LUA_GBOOLEAN_VOID(rotate_right);
+LUA_GBOOLEAN_VOID(rotate_left);
+LUA_GBOOLEAN_VOID(is_done);
+LUA_GBOOLEAN_VOID(get_result);
+
+static int init_lua(void)
+{
+	LUA = luaL_newstate();
+	if (!LUA)
+		return -1;
+
+	lua_register(LUA, "is_finish", l_is_finish);
+	lua_register(LUA, "is_done", l_is_done);
+	lua_register(LUA, "walk", l_walk);
+	lua_register(LUA, "check", l_check);
+	lua_register(LUA, "rotate_right", l_rotate_right);
+	lua_register(LUA, "rotate_left", l_rotate_left);
+	lua_register(LUA, "get_result", l_get_result);
+
+	printf("LUA: %d\n", luaL_dostring(LUA, "print('Hello!\\n');"));
 
 	return 0;
 }
