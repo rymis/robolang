@@ -36,14 +36,27 @@ struct _RobotLabirinthClass {
 };
 
 RobotLabirinth* robot_labirinth_new(void);
+void robot_labirinth_set_rect(RobotLabirinth *self, const SDL_Rect *rect);
 void robot_labirinth_set_size(RobotLabirinth *self, guint width, guint height);
 RobotLabirinthCell robot_labirinth_get_cell(RobotLabirinth *self, guint x, guint y);
 gboolean robot_labirinth_is_wall(RobotLabirinth *self, RobotLabirinthCell cell);
+gboolean robot_labirinth_is_exit(RobotLabirinth *self, RobotLabirinthCell cell);
 gboolean robot_labirinth_can_walk(RobotLabirinth *self, guint x, guint y);
 void robot_labirinth_set_cell(RobotLabirinth *self, guint x, guint y, RobotLabirinthCell cell);
 gboolean robot_labirinth_load(RobotLabirinth *self, const char *filename, SDL_Renderer *renderer, GError **error);
 void robot_labirinth_set_sprite_for_cell(RobotLabirinth *self, guint cell, RobotSprite *sprite);
 void robot_labirinth_render(RobotLabirinth *self, SDL_Renderer *renderer);
+gboolean robot_labirinth_is_finish(RobotLabirinth *self);
+
+/* Robot commands (Thread-safe): */
+
+gboolean robot_labirinth_check(RobotLabirinth *self);
+gboolean robot_labirinth_walk(RobotLabirinth *self);
+gboolean robot_labirinth_rotate_left(RobotLabirinth *self);
+gboolean robot_labirinth_rotate_right(RobotLabirinth *self);
+
+gboolean robot_labirinth_is_done(RobotLabirinth *self);
+gboolean robot_labirinth_get_result(RobotLabirinth *self);
 
 G_END_DECLS
 

@@ -44,7 +44,7 @@ background { color Black }
 	}
 
 camera {
-	location <0, 200, -300>
+	location <0, 80, -120>
 	// location <0, -50, -200>
 	look_at  <0, -50, 0>
 }

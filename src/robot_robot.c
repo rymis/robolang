@@ -11,26 +11,23 @@ struct mode_info {
 };
 
 static struct mode_info mode_list[] = {
-	{ "walk_r", 0, 5, 0 },
-	{ "walk_r", 0, 5, 0 },
-	{ "check_r", 0, 0, 0 },
-	{ "rotate_ru", 0, 0, 0 },
-	{ "walk_u", 0, 0, -5 },
-	{ "walk_u", 0, 0, -5 },
-	{ "check_u", 0, 0, 0 },
-	{ "rotate_ul", 0, 0, 0 },
-	{ "walk_l", 0, -5, 0 },
-	{ "walk_l", 0, -5, 0 },
-	{ "check_l", 0, 0, 0 },
-	{ "rotate_ld", 0, 0, 0 },
-	{ "walk_d", 0, 0, 5 },
-	{ "walk_d", 0, 0, 5 },
+	{ "walk_r", 0, 1, 0 },
+	{ "walk_u", 0, 0, -1 },
+	{ "walk_l", 0, -1, 0 },
+	{ "walk_d", 0, 0, 1 },
+
 	{ "check_d", 0, 0, 0 },
-	{ "rotate_dr", 0, 0, 0 },
+	{ "check_l", 0, 0, 0 },
+	{ "check_u", 0, 0, 0 },
+	{ "check_r", 0, 0, 0 },
 
 	{ "rotate_rd", 0, 0, 0 },
+	{ "rotate_dr", 0, 0, 0 },
 	{ "rotate_dl", 0, 0, 0 },
+	{ "rotate_ld", 0, 0, 0 },
 	{ "rotate_lu", 0, 0, 0 },
+	{ "rotate_ul", 0, 0, 0 },
+	{ "rotate_ru", 0, 0, 0 },
 	{ "rotate_ur", 0, 0, 0 },
 };
 static guint mode_cnt = sizeof(mode_list) / sizeof(mode_list[0]);
@@ -46,9 +43,12 @@ static void init_quarks(void)
 
 struct _RobotRobotPrivate {
 	guint mode;
-	uint frame;
-	guint frames_count;
+	gint frame;
+	gint frames_count;
 	gint64 pause;
+
+	RobotState state;
+	RobotDirection direction;
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE(RobotRobot, robot_robot, ROBOT_TYPE_SPRITE)
@@ -71,18 +71,20 @@ static void robot_robot_class_init(RobotRobotClass *klass)
 	GObjectClass *objcls = G_OBJECT_CLASS(klass);
 	objcls->dispose = dispose;
 	objcls->finalize = finalize;
+
+	init_quarks();
 }
 
 static void robot_robot_init(RobotRobot *self)
 {
 	self->priv = robot_robot_get_instance_private(self);
+	self->priv->direction = ROBOT_RIGHT;
+	self->priv->state = ROBOT_IDLE;
 }
 
 RobotRobot* robot_robot_new(void)
 {
 	RobotRobot* self = g_object_new(ROBOT_TYPE_ROBOT, NULL);
-
-	init_quarks();
 
 	return self;
 }
@@ -133,29 +135,138 @@ gboolean robot_robot_load_from_file(RobotRobot *self, SDL_Renderer *renderer, co
 	return TRUE;
 }
 
+static void set_mode(RobotRobot *self)
+{
+	robot_sprite_set_mode(ROBOT_SPRITE(self), mode_list[self->priv->mode].mode);
+
+	self->priv->frames_count = robot_sprite_get_frames_count(ROBOT_SPRITE(self));
+	self->priv->frame = 0;
+	self->priv->pause = 1000000 / self->priv->frames_count;
+
+	printf("MODE: %d, direction: %d, cnt: %u\n", self->priv->mode, self->priv->direction, self->priv->frames_count);
+}
+
+static void set_mode_s(RobotRobot *self, const gchar* mode)
+{
+	guint i;
+
+	for (i = 0; i < mode_cnt; i++) {
+		if (!strcmp(mode_list[i].name, mode)) {
+			self->priv->mode = i;
+			set_mode(self);
+
+			return;
+		}
+	}
+}
+
+static char direction2char(RobotDirection d)
+{
+	switch (d) {
+		case ROBOT_UP: return 'u';
+		case ROBOT_LEFT: return 'l';
+		case ROBOT_DOWN: return 'd';
+		case ROBOT_RIGHT: return 'r';
+	}
+
+	return ' ';
+}
+
+static RobotDirection next_direction(RobotDirection d)
+{
+	switch (d) {
+		case ROBOT_UP: return ROBOT_LEFT;
+		case ROBOT_LEFT: return ROBOT_DOWN;
+		case ROBOT_DOWN: return ROBOT_RIGHT;
+		case ROBOT_RIGHT: return ROBOT_UP;
+	}
+
+	return ROBOT_UP;
+}
+
+static RobotDirection prev_direction(RobotDirection d)
+{
+	switch (d) {
+		case ROBOT_UP: return ROBOT_RIGHT;
+		case ROBOT_LEFT: return ROBOT_UP;
+		case ROBOT_DOWN: return ROBOT_LEFT;
+		case ROBOT_RIGHT: return ROBOT_DOWN;
+	}
+
+	return ROBOT_UP;
+}
+
+void robot_robot_set_state(RobotRobot *self, RobotState state)
+{
+	char mode[32];
+
+	self->priv->state = state;
+	switch (state) {
+		case ROBOT_IDLE:
+			break;
+		case ROBOT_WALK:
+			sprintf(mode, "walk_%c", direction2char(self->priv->direction));
+			break;
+		case ROBOT_ROTATE_LEFT:
+			sprintf(mode, "rotate_%c%c", direction2char(self->priv->direction), direction2char(next_direction(self->priv->direction)));
+			break;
+		case ROBOT_ROTATE_RIGHT:
+			sprintf(mode, "rotate_%c%c", direction2char(self->priv->direction), direction2char(prev_direction(self->priv->direction)));
+			break;
+		case ROBOT_CHECK:
+			sprintf(mode, "check_%c", direction2char(self->priv->direction));
+			break;
+		default:
+			return;
+	}
+printf("MODE: %s\n", mode);
+	set_mode_s(self, mode);
+}
+
+RobotState robot_robot_get_state(RobotRobot *self)
+{
+	return self->priv->state;
+}
+
+void robot_robot_set_direction(RobotRobot *self, RobotDirection direction)
+{
+	self->priv->direction = direction;
+}
+
+RobotDirection robot_robot_get_direction(RobotRobot *self)
+{
+	return self->priv->direction;
+}
+
 static gint64 robot_robot_action(RobotSprite *self_, gint64 now, gpointer userptr)
 {
 	RobotRobot *self = ROBOT_ROBOT(self_);
+	int dx, dy;
 
-	if (self->priv->frame >= self->priv->frames_count) {
-		self->priv->mode = (self->priv->mode + 1) % mode_cnt;
-		set_mode(self);
+	if (self->priv->state == ROBOT_IDLE) {
+		return now + 5000;
 	}
 
-	robot_sprite_move(self_, mode_list[self->priv->mode].dx, mode_list[self->priv->mode].dy);
+	if (self->priv->frame >= self->priv->frames_count) {
+		if (self->priv->state == ROBOT_ROTATE_LEFT) {
+			self->priv->direction = next_direction(self->priv->direction);
+		} else if (self->priv->state == ROBOT_ROTATE_RIGHT) {
+			self->priv->direction = prev_direction(self->priv->direction);
+		}
+
+		self->priv->state = ROBOT_IDLE;
+	}
+
+	dx = dy = 0;
+	if (mode_list[self->priv->mode].dx || mode_list[self->priv->mode].dy) {
+		dx = (mode_list[self->priv->mode].dx * 1000) / self->priv->frames_count;
+		dy = (mode_list[self->priv->mode].dy * 1000) / self->priv->frames_count;
+		robot_sprite_move(self_, dx, dy);
+	}
 	robot_sprite_set_frame(self_, self->priv->frame);
 	self->priv->frame++;
 
 	return now + self->priv->pause;
 }
 
-static void set_mode(RobotRobot *self)
-{
-	self->priv->frames_count = robot_sprite_get_frames_count(ROBOT_SPRITE(self));
-	self->priv->frame = 0;
-	self->priv->pause = 1000000 / self->priv->frames_count;
-	printf("MODE: %d, cnd: %u\n", self->priv->mode, self->priv->frames_count);
-
-	robot_sprite_set_mode(ROBOT_SPRITE(self), mode_list[self->priv->mode].mode);
-}
 

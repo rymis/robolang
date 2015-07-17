@@ -1,3 +1,4 @@
+ADD_SUBDIRECTORY(lua)
 
 ADD_LIBRARY(robotvm robot_vm.c robot_obj_file.c)
 

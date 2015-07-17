@@ -245,7 +245,7 @@ static gboolean traverse(gpointer key, gpointer value, gpointer data)
 
 GArray* robot_sprite_get_modes(RobotSprite *self)
 {
-	GArray *res = g_array_new(sizeof(GQuark), FALSE, FALSE);
+	GArray *res = g_array_new(FALSE, FALSE, sizeof(GQuark));
 
 	g_tree_foreach(self->priv->modes, traverse, res);
 
@@ -334,6 +334,13 @@ static void get_size(RobotSprite *self, int *w, int *h)
 		if (h) *h = 0;
 		return;
 	}
+
+	if (self->priv->scale_x > 0 && self->priv->scale_y > 0) {
+		if (w) *w = self->priv->scale_x;
+		if (h) *h = self->priv->scale_y;
+		return;
+	}
+
 	SDL_QueryTexture(self->priv->texture, NULL, NULL, w, h);
 }
 
@@ -416,9 +423,9 @@ void robot_sprite_render(RobotSprite *self, SDL_Renderer *renderer)
 	dst.y = self->priv->y;
 	get_size(self, &dst.w, &dst.h);
 	if (self->priv->scale_x > 0)
-		dst.x = self->priv->scale_x;
+		dst.w = self->priv->scale_x;
 	if (self->priv->scale_y > 0)
-		dst.y = self->priv->scale_y;
+		dst.h = self->priv->scale_y;
 
 	SDL_RenderCopyEx(renderer, self->priv->texture, NULL, &dst, self->priv->rotation, NULL, self->priv->flip);
 }

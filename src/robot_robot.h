@@ -22,6 +22,23 @@ typedef struct _RobotRobot RobotRobot;
 typedef struct _RobotRobotClass RobotRobotClass;
 typedef struct _RobotRobotPrivate RobotRobotPrivate;
 
+enum _RobotState {
+	ROBOT_IDLE,
+	ROBOT_WALK,
+	ROBOT_ROTATE_LEFT,
+	ROBOT_ROTATE_RIGHT,
+	ROBOT_CHECK
+};
+typedef enum _RobotState RobotState;
+
+enum _RobotDirection {
+	ROBOT_UP,
+	ROBOT_LEFT,
+	ROBOT_DOWN,
+	ROBOT_RIGHT
+};
+typedef enum _RobotDirection RobotDirection;
+
 struct _RobotRobot {
 	RobotSprite parent_instance;
 
@@ -35,6 +52,12 @@ struct _RobotRobotClass {
 RobotRobot* robot_robot_new(void);
 gboolean robot_robot_load_from_file(RobotRobot *self, SDL_Renderer *renderer, const char *name, GError **error);
 gboolean robot_robot_from_xml_node(RobotRobot *self, SDL_Renderer *renderer, const gchar* name, RobotXml *xml, GError **error);
+
+void robot_robot_set_state(RobotRobot *self, RobotState state);
+RobotState robot_robot_get_state(RobotRobot *self);
+
+void robot_robot_set_direction(RobotRobot *self, RobotDirection direction);
+RobotDirection robot_robot_get_direction(RobotRobot *self);
 
 G_END_DECLS
 
