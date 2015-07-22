@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="utf-8"?>
+<labirinth x="1" y="1">
+	<sprites>
+		<sprite char="-" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_h.png"/>
+			</mode>
+		</sprite>
+		<sprite char="|" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_v.png"/>
+			</mode>
+		</sprite>
+		<sprite char="+" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_x.png"/>
+			</mode>
+		</sprite>
+		<sprite char=" " type="way">
+			<mode name="default">
+				<frame img="way.png"/>
+			</mode>
+		</sprite>
+		<sprite char="@" type="exit">
+			<mode name="default">
+				<frame img="exit.png"/>
+			</mode>
+		</sprite>
+	</sprites>
+	<robot>
+		<sprite>
+			<mode name="walk_d">
+				<frame img="robot/frame000.png"/>
+				<frame img="robot/frame001.png"/>
+				<frame img="robot/frame002.png"/>
+				<frame img="robot/frame003.png"/>
+				<frame img="robot/frame004.png"/>
+				<frame img="robot/frame005.png"/>
+				<frame img="robot/frame006.png"/>
+				<frame img="robot/frame007.png"/>
+				<frame img="robot/frame008.png"/>
+				<frame img="robot/frame009.png"/>
+				<frame img="robot/frame010.png"/>
+				<frame img="robot/frame011.png"/>
+				<frame img="robot/frame012.png"/>
+			</mode>
+			<mode name="walk_u">
+				<frame img="robot/frame013.png"/>
+				<frame img="robot/frame014.png"/>
+				<frame img="robot/frame015.png"/>
+				<frame img="robot/frame016.png"/>
+				<frame img="robot/frame017.png"/>
+				<frame img="robot/frame018.png"/>
+				<frame img="robot/frame019.png"/>
+				<frame img="robot/frame020.png"/>
+				<frame img="robot/frame021.png"/>
+				<frame img="robot/frame022.png"/>
+				<frame img="robot/frame023.png"/>
+				<frame img="robot/frame024.png"/>
+				<frame img="robot/frame025.png"/>
+			</mode>
+			<mode name="walk_r">
+				<frame img="robot/frame026.png"/>
+				<frame img="robot/frame027.png"/>
+				<frame img="robot/frame028.png"/>
+				<frame img="robot/frame029.png"/>
+				<frame img="robot/frame030.png"/>
+				<frame img="robot/frame031.png"/>
+				<frame img="robot/frame032.png"/>
+				<frame img="robot/frame033.png"/>
+				<frame img="robot/frame034.png"/>
+				<frame img="robot/frame035.png"/>
+				<frame img="robot/frame036.png"/>
+				<frame img="robot/frame037.png"/>
+				<frame img="robot/frame038.png"/>
+			</mode>
+			<mode name="walk_l">
+				<frame img="robot/frame039.png"/>
+				<frame img="robot/frame040.png"/>
+				<frame img="robot/frame041.png"/>
+				<frame img="robot/frame042.png"/>
+				<frame img="robot/frame043.png"/>
+				<frame img="robot/frame044.png"/>
+				<frame img="robot/frame045.png"/>
+				<frame img="robot/frame046.png"/>
+				<frame img="robot/frame047.png"/>
+				<frame img="robot/frame048.png"/>
+				<frame img="robot/frame049.png"/>
+				<frame img="robot/frame050.png"/>
+				<frame img="robot/frame051.png"/>
+			</mode>
+			<mode name="rotate_dr">
+				<frame img="robot/frame052.png"/>
+				<frame img="robot/frame053.png"/>
+				<frame img="robot/frame054.png"/>
+				<frame img="robot/frame055.png"/>
+				<frame img="robot/frame056.png"/>
+				<frame img="robot/frame057.png"/>
+				<frame img="robot/frame058.png"/>
+				<frame img="robot/frame059.png"/>
+				<frame img="robot/frame060.png"/>
+				<frame img="robot/frame061.png"/>
+				<frame img="robot/frame062.png"/>
+			</mode>
+			<mode name="rotate_ru">
+				<frame img="robot/frame063.png"/>
+				<frame img="robot/frame064.png"/>
+				<frame img="robot/frame065.png"/>
+				<frame img="robot/frame066.png"/>
+				<frame img="robot/frame067.png"/>
+				<frame img="robot/frame068.png"/>
+				<frame img="robot/frame069.png"/>
+				<frame img="robot/frame070.png"/>
+				<frame img="robot/frame071.png"/>
+				<frame img="robot/frame072.png"/>
+				<frame img="robot/frame073.png"/>
+			</mode>
+			<mode name="rotate_ul">
+				<frame img="robot/frame074.png"/>
+				<frame img="robot/frame075.png"/>
+				<frame img="robot/frame076.png"/>
+				<frame img="robot/frame077.png"/>
+				<frame img="robot/frame078.png"/>
+				<frame img="robot/frame079.png"/>
+				<frame img="robot/frame080.png"/>
+				<frame img="robot/frame081.png"/>
+				<frame img="robot/frame082.png"/>
+				<frame img="robot/frame083.png"/>
+				<frame img="robot/frame084.png"/>
+			</mode>
+			<mode name="rotate_ld">
+				<frame img="robot/frame085.png"/>
+				<frame img="robot/frame086.png"/>
+				<frame img="robot/frame087.png"/>
+				<frame img="robot/frame088.png"/>
+				<frame img="robot/frame089.png"/>
+				<frame img="robot/frame090.png"/>
+				<frame img="robot/frame091.png"/>
+				<frame img="robot/frame092.png"/>
+				<frame img="robot/frame093.png"/>
+				<frame img="robot/frame094.png"/>
+				<frame img="robot/frame095.png"/>
+			</mode>
+			<mode name="rotate_dl">
+				<frame img="robot/frame096.png"/>
+				<frame img="robot/frame097.png"/>
+				<frame img="robot/frame098.png"/>
+				<frame img="robot/frame099.png"/>
+				<frame img="robot/frame100.png"/>
+				<frame img="robot/frame101.png"/>
+				<frame img="robot/frame102.png"/>
+				<frame img="robot/frame103.png"/>
+				<frame img="robot/frame104.png"/>
+				<frame img="robot/frame105.png"/>
+				<frame img="robot/frame106.png"/>
+			</mode>
+			<mode name="rotate_lu">
+				<frame img="robot/frame107.png"/>
+				<frame img="robot/frame108.png"/>
+				<frame img="robot/frame109.png"/>
+				<frame img="robot/frame110.png"/>
+				<frame img="robot/frame111.png"/>
+				<frame img="robot/frame112.png"/>
+				<frame img="robot/frame113.png"/>
+				<frame img="robot/frame114.png"/>
+				<frame img="robot/frame115.png"/>
+				<frame img="robot/frame116.png"/>
+				<frame img="robot/frame117.png"/>
+			</mode>
+			<mode name="rotate_ur">
+				<frame img="robot/frame118.png"/>
+				<frame img="robot/frame119.png"/>
+				<frame img="robot/frame120.png"/>
+				<frame img="robot/frame121.png"/>
+				<frame img="robot/frame122.png"/>
+				<frame img="robot/frame123.png"/>
+				<frame img="robot/frame124.png"/>
+				<frame img="robot/frame125.png"/>
+				<frame img="robot/frame126.png"/>
+				<frame img="robot/frame127.png"/>
+				<frame img="robot/frame128.png"/>
+			</mode>
+			<mode name="rotate_rd">
+				<frame img="robot/frame129.png"/>
+				<frame img="robot/frame130.png"/>
+				<frame img="robot/frame131.png"/>
+				<frame img="robot/frame132.png"/>
+				<frame img="robot/frame133.png"/>
+				<frame img="robot/frame134.png"/>
+				<frame img="robot/frame135.png"/>
+				<frame img="robot/frame136.png"/>
+				<frame img="robot/frame137.png"/>
+				<frame img="robot/frame138.png"/>
+				<frame img="robot/frame139.png"/>
+			</mode>
+			<mode name="check_d">
+				<frame img="robot/frame140.png"/>
+				<frame img="robot/frame141.png"/>
+				<frame img="robot/frame142.png"/>
+				<frame img="robot/frame143.png"/>
+				<frame img="robot/frame144.png"/>
+				<frame img="robot/frame145.png"/>
+				<frame img="robot/frame146.png"/>
+				<frame img="robot/frame147.png"/>
+				<frame img="robot/frame148.png"/>
+				<frame img="robot/frame149.png"/>
+				<frame img="robot/frame150.png"/>
+				<frame img="robot/frame151.png"/>
+				<frame img="robot/frame152.png"/>
+				<frame img="robot/frame153.png"/>
+				<frame img="robot/frame154.png"/>
+				<frame img="robot/frame155.png"/>
+				<frame img="robot/frame156.png"/>
+				<frame img="robot/frame157.png"/>
+				<frame img="robot/frame158.png"/>
+			</mode>
+			<mode name="check_r">
+				<frame img="robot/frame159.png"/>
+				<frame img="robot/frame160.png"/>
+				<frame img="robot/frame161.png"/>
+				<frame img="robot/frame162.png"/>
+				<frame img="robot/frame163.png"/>
+				<frame img="robot/frame164.png"/>
+				<frame img="robot/frame165.png"/>
+				<frame img="robot/frame166.png"/>
+				<frame img="robot/frame167.png"/>
+				<frame img="robot/frame168.png"/>
+				<frame img="robot/frame169.png"/>
+				<frame img="robot/frame170.png"/>
+				<frame img="robot/frame171.png"/>
+				<frame img="robot/frame172.png"/>
+				<frame img="robot/frame173.png"/>
+				<frame img="robot/frame174.png"/>
+				<frame img="robot/frame175.png"/>
+				<frame img="robot/frame176.png"/>
+				<frame img="robot/frame177.png"/>
+			</mode>
+			<mode name="check_l">
+				<frame img="robot/frame178.png"/>
+				<frame img="robot/frame179.png"/>
+				<frame img="robot/frame180.png"/>
+				<frame img="robot/frame181.png"/>
+				<frame img="robot/frame182.png"/>
+				<frame img="robot/frame183.png"/>
+				<frame img="robot/frame184.png"/>
+				<frame img="robot/frame185.png"/>
+				<frame img="robot/frame186.png"/>
+				<frame img="robot/frame187.png"/>
+				<frame img="robot/frame188.png"/>
+				<frame img="robot/frame189.png"/>
+				<frame img="robot/frame190.png"/>
+				<frame img="robot/frame191.png"/>
+				<frame img="robot/frame192.png"/>
+				<frame img="robot/frame193.png"/>
+				<frame img="robot/frame194.png"/>
+				<frame img="robot/frame195.png"/>
+				<frame img="robot/frame196.png"/>
+			</mode>
+			<mode name="check_u">
+				<frame img="robot/frame197.png"/>
+				<frame img="robot/frame198.png"/>
+				<frame img="robot/frame199.png"/>
+				<frame img="robot/frame200.png"/>
+				<frame img="robot/frame201.png"/>
+				<frame img="robot/frame202.png"/>
+				<frame img="robot/frame203.png"/>
+				<frame img="robot/frame204.png"/>
+				<frame img="robot/frame205.png"/>
+				<frame img="robot/frame206.png"/>
+				<frame img="robot/frame207.png"/>
+				<frame img="robot/frame208.png"/>
+				<frame img="robot/frame209.png"/>
+				<frame img="robot/frame210.png"/>
+				<frame img="robot/frame211.png"/>
+				<frame img="robot/frame212.png"/>
+				<frame img="robot/frame213.png"/>
+				<frame img="robot/frame214.png"/>
+				<frame img="robot/frame215.png"/>
+			</mode>
+		</sprite>
+	</robot>
+	<table>
+ 		<row value="+--------+"/>
+ 		<row value="|        |"/>
+ 		<row value="| +-+ | ||"/>
+ 		<row value="|-+ +-+ ||"/>
+ 		<row value="|       ||"/>
+ 		<row value="| +-----++"/>
+ 		<row value="| |      |"/>
+ 		<row value="| -- | | |"/>
+ 		<row value="|    | | |"/>
+ 		<row value="+----+-+@+"/>
+	</table>
+</labirinth>
