@@ -8,6 +8,7 @@
 #include "robot_robot.h"
 #include "robot_labirinth.h"
 #include "robot.h"
+#include <errno.h>
 
 #include "lua.h"
 #include "lualib.h"
@@ -23,6 +24,8 @@ static SDL_Renderer *renderer = NULL;
 static SDL_Window *window = NULL;
 
 static lua_State *LUA = NULL;
+
+static int load_lua(const char *filename);
 
 static gboolean timeout_cb(gpointer ptr)
 {
@@ -52,40 +55,55 @@ static gboolean event_cb(SDL_Event *event, gpointer userdata)
 	return TRUE;
 }
 
-static gboolean idle_cb(gpointer ptr)
+gboolean stop_lua = FALSE;
+G_LOCK_DEFINE_STATIC(stop_lua);
+static void line_hook(lua_State *L, lua_Debug *dbg)
 {
-	static RobotState last_cmd = ROBOT_IDLE;
-	int c;
+	printf("#line [%d]\n", dbg->currentline);
 
-	if (robot_labirinth_is_done(labirinth)) {
-		if (last_cmd == ROBOT_CHECK) {
-			if (robot_labirinth_get_result(labirinth)) {
-				last_cmd = ROBOT_WALK;
-				robot_labirinth_walk(labirinth);
-			} else {
-				last_cmd = ROBOT_IDLE;
-			}
-		} else {
-			c = rand() % 6;
+	G_LOCK(stop_lua);
+	if (stop_lua) {
+		luaL_error(L, "stopped");
+	}
+	G_UNLOCK(stop_lua);
+}
 
-			if (robot_labirinth_is_finish(labirinth)) {
-				return FALSE;
-			}
+gboolean running = FALSE;
+G_LOCK_DEFINE_STATIC(running);
 
-			if (c == 0) {
-				last_cmd = ROBOT_ROTATE_LEFT;
-				robot_labirinth_rotate_left(labirinth);
-			} else if (c == 1) {
-				last_cmd = ROBOT_ROTATE_RIGHT;
-				robot_labirinth_rotate_right(labirinth);
-			} else {
-				last_cmd = ROBOT_CHECK;
-				robot_labirinth_check(labirinth);
-			}
-		}
+static gpointer thread_lua(gpointer ctx)
+{
+	lua_sethook(LUA, line_hook, LUA_MASKLINE, 0);
+
+	if (lua_pcall(LUA, 0, LUA_MULTRET, 0) != 0) {
+		printf("#error %s\n", lua_tostring(LUA, -1));
+		return FALSE;
 	}
 
-	return TRUE;
+	G_LOCK(running);
+	running = FALSE;
+	G_UNLOCK(running);
+
+	return NULL;
+}
+
+static GThread* th_lua;
+static void start_lua(void)
+{
+	G_LOCK(running);
+	running = FALSE;
+	G_UNLOCK(running);
+
+	th_lua = g_thread_new("lua", thread_lua, NULL);
+}
+
+static void wait_lua(void)
+{
+	G_LOCK(stop_lua);
+	stop_lua = TRUE;
+	G_UNLOCK(stop_lua);
+
+	g_thread_join(th_lua);
 }
 
 static int test_vm(void);
@@ -93,10 +111,14 @@ static int init_lua(void);
 int main(int argc, char *argv[])
 {
 	GError *error = NULL;
+	const char *progname = "robot.lua";
 
 	if (argc > 1 && !strcmp(argv[1], "vm")) {
 		return test_vm();
 	}
+
+	if (argc > 1)
+		progname = argv[1];
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		fprintf(stderr, "Error: SDL_Init failed: %s\n", SDL_GetError());
@@ -136,11 +158,24 @@ int main(int argc, char *argv[])
 
 	/* Creating main loop: */
 	g_timeout_add(30, timeout_cb, NULL);
-	g_idle_add(idle_cb, NULL);
 	x_sdl_add_source(loop, event_cb, NULL, NULL);
 	init_lua();
 
+	if (load_lua(progname)) {
+		g_clear_object(&scene);
+		g_clear_object(&labirinth);
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
+		SDL_Quit();
+
+		return EXIT_FAILURE;
+	}
+
+	start_lua();
+
 	g_main_loop_run(loop);
+
+	wait_lua();
 
 	g_clear_object(&scene);
 	g_clear_object(&labirinth);
@@ -209,17 +244,83 @@ static int test_vm(void)
 static int l_##nm(lua_State *lua) \
 { \
 	gboolean res = robot_labirinth_##nm(labirinth); \
-	lua_pushnumber(lua, res? 1: 0); \
+	lua_pushboolean(lua, res); \
 	return 1; \
 }
 
+static gboolean wait_done(void)
+{
+	gboolean res = FALSE;
+
+	while (!robot_labirinth_is_done(labirinth)) {
+		g_usleep(1000);
+		G_LOCK(stop_lua);
+		res = stop_lua;
+		G_UNLOCK(stop_lua);
+
+		if (res)
+			return res;
+	}
+
+	return res;
+}
+
+static int l_check(lua_State *L)
+{
+	if (wait_done()) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+
+	robot_labirinth_check(labirinth);
+
+	if (wait_done()) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+
+	lua_pushboolean(L, robot_labirinth_get_result(labirinth));
+
+	return 1;
+}
+
+static int l_walk(lua_State *L)
+{
+	if (wait_done())
+		return 0;
+
+	robot_labirinth_walk(labirinth);
+
+	wait_done();
+
+	return 0;
+}
+
+static int l_rotate_left(lua_State *L)
+{
+	if (wait_done())
+		return 0;
+
+	robot_labirinth_rotate_left(labirinth);
+
+	wait_done();
+
+	return 0;
+}
+
+static int l_rotate_right(lua_State *L)
+{
+	if (wait_done())
+		return 0;
+
+	robot_labirinth_rotate_right(labirinth);
+
+	wait_done();
+
+	return 0;
+}
+
 LUA_GBOOLEAN_VOID(is_finish);
-LUA_GBOOLEAN_VOID(check);
-LUA_GBOOLEAN_VOID(walk);
-LUA_GBOOLEAN_VOID(rotate_right);
-LUA_GBOOLEAN_VOID(rotate_left);
-LUA_GBOOLEAN_VOID(is_done);
-LUA_GBOOLEAN_VOID(get_result);
 
 static int init_lua(void)
 {
@@ -228,14 +329,55 @@ static int init_lua(void)
 		return -1;
 
 	lua_register(LUA, "is_finish", l_is_finish);
-	lua_register(LUA, "is_done", l_is_done);
 	lua_register(LUA, "walk", l_walk);
 	lua_register(LUA, "check", l_check);
-	lua_register(LUA, "rotate_right", l_rotate_right);
-	lua_register(LUA, "rotate_left", l_rotate_left);
-	lua_register(LUA, "get_result", l_get_result);
+	lua_register(LUA, "right", l_rotate_right);
+	lua_register(LUA, "left", l_rotate_left);
 
-	printf("LUA: %d\n", luaL_dostring(LUA, "print('Hello!\\n');"));
+	return 0;
+}
+
+static int load_lua(const char *filename)
+{
+	FILE *f = fopen(filename, "rt");
+	GString *str;
+	char buf[512];
+	gssize len;
+	gchar *prog;
+
+	if (!f) {
+		fprintf(stderr, "Error: can not load file!\n");
+		return -1;
+	}
+
+	str = g_string_new("");
+	for (;;) {
+		len = fread(buf, 1, sizeof(buf), f);
+		if (len < 0) {
+			fprintf(stderr, "Error: %s\n", strerror(errno));
+			fclose(f);
+			g_string_free(str, TRUE);
+			return -1;
+		}
+
+		if (len == 0) {
+			fclose(f);
+			break;
+		}
+
+		g_string_append_len(str, buf, len);
+	}
+
+	prog = g_string_free(str, FALSE);
+
+	if (luaL_loadstring(LUA, prog)) {
+		fprintf(stderr, "Error: can not load Lua program!\n");
+		fprintf(stderr, "ERROR: %s\n", lua_tostring(LUA, -1));
+
+		g_free(prog);
+
+		return -1;
+	}
 
 	return 0;
 }

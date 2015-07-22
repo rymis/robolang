@@ -540,13 +540,22 @@ gboolean robot_labirinth_check(RobotLabirinth *self)
 gboolean robot_labirinth_walk(RobotLabirinth *self)
 {
 	gboolean res = TRUE;
+	guint x, y;
 
 	G_LOCK(labirinth);
 	if (robot_robot_get_state(self->priv->robot) != ROBOT_IDLE) {
 		res = FALSE;
 	} else {
-		robot_robot_set_state(self->priv->robot, ROBOT_WALK);
-		next_cell(self, &self->priv->next_x, &self->priv->next_y);
+		next_cell(self, &x, &y);
+		if (robot_labirinth_can_walk(self, x, y)) {
+			robot_robot_set_state(self->priv->robot, ROBOT_WALK);
+			self->priv->next_x = x;
+			self->priv->next_y = y;
+		} else {
+			robot_robot_set_state(self->priv->robot, ROBOT_WALK_ON_PLACE);
+			self->priv->next_x = self->priv->robot_x;
+			self->priv->next_y = self->priv->robot_y;
+		}
 	}
 	G_UNLOCK(labirinth);
 
@@ -594,9 +603,9 @@ gboolean robot_labirinth_is_done(RobotLabirinth *self)
 
 	G_LOCK(labirinth);
 	if (robot_robot_get_state(self->priv->robot) == ROBOT_IDLE) {
+		robot_sprite_set_position(ROBOT_SPRITE(self->priv->robot), 0, 0);
 		if (self->priv->next_x != self->priv->robot_x || self->priv->next_y != self->priv->robot_y) {
 			/* When robot moved we need to change position: */
-			robot_sprite_set_position(ROBOT_SPRITE(self->priv->robot), 0, 0);
 			self->priv->robot_x = self->priv->next_x;
 			self->priv->robot_y = self->priv->next_y;
 		}

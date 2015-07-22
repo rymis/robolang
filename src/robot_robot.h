@@ -27,7 +27,8 @@ enum _RobotState {
 	ROBOT_WALK,
 	ROBOT_ROTATE_LEFT,
 	ROBOT_ROTATE_RIGHT,
-	ROBOT_CHECK
+	ROBOT_CHECK,
+	ROBOT_WALK_ON_PLACE /* Walk but don't move from place (when here are the wall in front of robot) */
 };
 typedef enum _RobotState RobotState;
 

@@ -5,7 +5,11 @@ static GtkWidget *source = NULL;
 
 static void create_window(void)
 {
+	GtkWidget *vbox;
+
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	vbox = gtk_vbox_new(FALSE, FALSE);
+	gtk_container_add(GTK_CONTAINER(window), vbox);
 
 	g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 

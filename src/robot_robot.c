@@ -49,6 +49,7 @@ struct _RobotRobotPrivate {
 
 	RobotState state;
 	RobotDirection direction;
+	gboolean dont_move;
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE(RobotRobot, robot_robot, ROBOT_TYPE_SPRITE)
@@ -80,6 +81,7 @@ static void robot_robot_init(RobotRobot *self)
 	self->priv = robot_robot_get_instance_private(self);
 	self->priv->direction = ROBOT_RIGHT;
 	self->priv->state = ROBOT_IDLE;
+	self->priv->dont_move = FALSE;
 }
 
 RobotRobot* robot_robot_new(void)
@@ -143,7 +145,7 @@ static void set_mode(RobotRobot *self)
 	self->priv->frame = 0;
 	self->priv->pause = 1000000 / self->priv->frames_count;
 
-	printf("MODE: %d, direction: %d, cnt: %u\n", self->priv->mode, self->priv->direction, self->priv->frames_count);
+	printf("MODE: %d, direction: %d, cnt: %u, dont_move = %d\n", self->priv->mode, self->priv->direction, self->priv->frames_count, self->priv->dont_move);
 }
 
 static void set_mode_s(RobotRobot *self, const gchar* mode)
@@ -216,10 +218,15 @@ void robot_robot_set_state(RobotRobot *self, RobotState state)
 		case ROBOT_CHECK:
 			sprintf(mode, "check_%c", direction2char(self->priv->direction));
 			break;
+		case ROBOT_WALK_ON_PLACE:
+			sprintf(mode, "walk_%c", direction2char(self->priv->direction));
+			self->priv->state = ROBOT_WALK;
+			self->priv->dont_move = TRUE;
+			break;
 		default:
 			return;
 	}
-printf("MODE: %s\n", mode);
+
 	set_mode_s(self, mode);
 }
 
@@ -255,10 +262,12 @@ static gint64 robot_robot_action(RobotSprite *self_, gint64 now, gpointer userpt
 		}
 
 		self->priv->state = ROBOT_IDLE;
+		self->priv->dont_move = FALSE;
 	}
 
 	dx = dy = 0;
-	if (mode_list[self->priv->mode].dx || mode_list[self->priv->mode].dy) {
+	if (!self->priv->dont_move &&
+			(mode_list[self->priv->mode].dx || mode_list[self->priv->mode].dy)) {
 		dx = (mode_list[self->priv->mode].dx * 1000) / self->priv->frames_count;
 		dy = (mode_list[self->priv->mode].dy * 1000) / self->priv->frames_count;
 		robot_sprite_move(self_, dx, dy);
