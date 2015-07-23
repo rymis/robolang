@@ -74,7 +74,11 @@ union {
 
 }
 
+
 light_source {
-	<100, 100, 100> color White
+	<100, 100, 100>
+	color White
+	parallel
+	point_at <0, 0, 0>
 }
 

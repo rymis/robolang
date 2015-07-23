@@ -16,6 +16,47 @@
 				<frame img="wall_brick_x.png"/>
 			</mode>
 		</sprite>
+		<sprite char="L" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_ru.png"/>
+			</mode>
+		</sprite>
+		<sprite char="/" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_lu.png"/>
+			</mode>
+		</sprite>
+		<sprite char="r" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_rd.png"/>
+			</mode>
+		</sprite>
+		<sprite char="7" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_ld.png"/>
+			</mode>
+		</sprite>
+		<sprite char="T" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_lrd.png"/>
+			</mode>
+		</sprite>
+		<sprite char="3" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_lud.png"/>
+			</mode>
+		</sprite>
+		<sprite char="E" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_rud.png"/>
+			</mode>
+		</sprite>
+		<sprite char="W" type="wall">
+			<mode name="default">
+				<frame img="wall_brick_lru.png"/>
+			</mode>
+		</sprite>
+
 		<sprite char=" " type="way">
 			<mode name="default">
 				<frame img="way.png"/>
@@ -280,15 +321,15 @@
 		</sprite>
 	</robot>
 	<table>
- 		<row value="+--------+"/>
+ 		<row value="r--------7"/>
  		<row value="|        |"/>
- 		<row value="| +-+ | ||"/>
- 		<row value="|-+ +-+ ||"/>
+ 		<row value="| r-7 | r3"/>
+		<row value="E-/ L-/ ||"/>
  		<row value="|       ||"/>
- 		<row value="| +-----++"/>
+ 		<row value="| r-----W3"/>
  		<row value="| |      |"/>
- 		<row value="| -- | | |"/>
+ 		<row value="| L- | | |"/>
  		<row value="|    | | |"/>
- 		<row value="+----+-+@+"/>
+		<row value="L----W-/@/"/>
 	</table>
 </labirinth>
